@@ -1,4 +1,4 @@
-# Email Classifier App
+# Automail - App de classificação de e-mails 
 
 Este projeto é uma aplicação web que automatiza a classificação de e‑mails em duas categorias: **Produtivo** (requer ação/resposta) e **Improdutivo** (não requer ação imediata). A aplicação usa técnicas de processamento de linguagem natural (NLP) e regras heurísticas, com opção de inferência por modelos de Aprendizado de Máquina (Machine Learning/ML).
 
