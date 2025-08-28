@@ -24,11 +24,11 @@ UNPRODUCTIVE_KEYWORDS: Set[str] = {
 }
 
 logger = logging.getLogger(__name__)
-LAST_DECISION_REASON: str = ""
+last_decision_reason: str = ""
 
 def get_last_decision_reason() -> str:
     """Return the last decision reason set by classify_text."""
-    return LAST_DECISION_REASON
+    return last_decision_reason
 
 class EmailClassifier:
     vectorizer: CountVectorizer
@@ -150,56 +150,119 @@ def classify_text(text: str) -> str:
     Try to use saved model only when LOAD_MODEL=1; otherwise use fallback.
     This function sets LAST_DECISION_REASON with a short explanation of the rule used.
     """
-    global LAST_DECISION_REASON
-    LAST_DECISION_REASON = ""
+    global last_decision_reason
+    last_decision_reason = ""
     if not text or not text.strip():
-        LAST_DECISION_REASON = "empty_or_whitespace"
-        logger.info("classification: Improdutivo (%s)", LAST_DECISION_REASON)
+        last_decision_reason = "empty_or_whitespace"
+        logger.info("classification: Improdutivo (%s)", last_decision_reason)
         return "Improdutivo"
 
     txt = text.lower()
     words = set(re.findall(r"\w+", txt))
 
-    greetings: Set[str] = {"hello", "hi", "hey", "greetings", "dear"}
+    # EN and PT quick keyword sets
+    greetings: Set[str] = {"hello", "hi", "hey", "greetings", "dear", "oi", "olá", "ola", "bom", "bomdia", "bom_dia", "boa_tarde", "boa_noite", "bom_dia"}
     holiday: Set[str] = {"happy", "holidays", "merry", "congratulations", "congrats"}
-    thanks: Set[str] = {"thanks", "thank", "ty", "gracias"}
+    thanks: Set[str] = {"thanks", "thank", "ty", "gracias", "obrigado", "obrigada", "agradeço", "valeu", "muito_obrigado", "muito_obrigada"}
+    closing_indicators: Set[str] = {"atenciosamente", "att", "abraços", "abraço", "cumprimentos", "saudações"}
+
     productive_indicators: Set[str] = {
-        "please", "update", "status", "issue", "support", "attach", "attached",
-        "ticket", "error", "problem", "urgent", "help", "request", "send", "provide"
+        "please", "por favor", "update", "atualizar", "status", "issue", "support", "attach", "attached",
+        "ticket", "error", "problem", "urgent", "help", "request", "send", "provide", "confirmar", "revisar",
+        "aplicar", "prazo", "agenda", "agendar", "reunião", "call", "chamada", "anexo", "anexar", "anexo"
     }
 
     # short greeting / check-in
     if len(txt) < 60 and (words & greetings):
-        LAST_DECISION_REASON = "short_greeting"
-        logger.info("classification: Improdutivo (%s)", LAST_DECISION_REASON)
+        last_decision_reason = "short_greeting"
+        logger.info("classification: Improdutivo (%s)", last_decision_reason)
         return "Improdutivo"
 
-    # holiday / thanks without indicators
-    if (words & holiday) or (words & thanks):
+    # If contains explicit thanks/closing and no productive indicators => Improdutivo
+    if (words & thanks or any(k in txt for k in closing_indicators)):
         if not (words & productive_indicators) and "?" not in text:
-            LAST_DECISION_REASON = "holiday_or_thanks_no_action"
-            logger.info("classification: Improdutivo (%s)", LAST_DECISION_REASON)
+            last_decision_reason = "thanks_or_closing_no_action"
+            logger.info("classification: Improdutivo (%s)", last_decision_reason)
+            return "Improdutivo"
+
+    # holiday / thanks without indicators (legacy check kept)
+    if (words & holiday):
+        if not (words & productive_indicators) and "?" not in text:
+            last_decision_reason = "holiday_no_action"
+            logger.info("classification: Improdutivo (%s)", last_decision_reason)
             return "Improdutivo"
 
     # explicit productive indicators
     if (words & productive_indicators):
-        LAST_DECISION_REASON = "found_productive_indicator"
-        logger.info("classification: Produtivo (%s)", LAST_DECISION_REASON)
+        last_decision_reason = "found_productive_indicator"
+        logger.info("classification: Produtivo (%s)", last_decision_reason)
         return "Produtivo"
 
-    # '?' rule (require enough meaningful tokens)
+    # '?' rule (require enough meaningful tokens and not spam/garbled)
     if "?" in text:
         try:
-            from app.nlp.preprocess import _get_stopwords
-            stopset = _get_stopwords()
-            tokens = re.findall(r"\w+", txt)
-            meaningful = [w for w in tokens if w not in stopset]
+            # use dynamic import to avoid static import errors if the symbol is not present
+            import importlib
+            mod = importlib.import_module("app.nlp.preprocess")
+            fn = getattr(mod, "get_stopwords", None)
+            if callable(fn):
+                # call and coerce result into a Set[str] safely by filtering/coercing elements to str
+                res = fn()
+                try:
+                    from collections.abc import Iterable
+                    from typing import Any, cast
+                    stopset = set()
+                    if isinstance(res, set):
+                        # keep only string elements (use explicit loop with a typed iterable)
+                        res_iter = cast(Iterable[Any], res)
+                        for item in res_iter:
+                            if isinstance(item, str):
+                                stopset.add(item)
+                    elif isinstance(res, (list, tuple)):
+                        # common iterable containers of strings; coerce elements to str using an explicit loop
+                        for item in cast(Iterable[Any], res):
+                            try:
+                                stopset.add(str(item))
+                            except Exception:
+                                # ignore items that cannot be coerced
+                                continue
+                    elif isinstance(res, Iterable) and not isinstance(res, (str, bytes)):
+                        # generic iterable (but not str/bytes): coerce elements to str using an explicit loop
+                        for item in cast(Iterable[Any], res):
+                            try:
+                                stopset.add(str(item))
+                            except Exception:
+                                # ignore items that cannot be coerced
+                                continue
+                    else:
+                        stopset = set()
+                except Exception:
+                    stopset = set()
+            else:
+                stopset: Set[str] = set()
         except Exception:
-            meaningful = re.findall(r"\w+", txt)
-        if len(meaningful) >= 3:
-            LAST_DECISION_REASON = "question_with_enough_meaningful_tokens"
-            logger.info("classification: Produtivo (%s)", LAST_DECISION_REASON)
+            stopset: Set[str] = set()
+        tokens = re.findall(r"\w+", txt)
+        meaningful = [w for w in tokens if w not in stopset]
+
+        # check spam/garbled before deciding
+        try:
+            spammy = _looks_spammy(txt)
+        except Exception:
+            spammy = False
+        try:
+            garbled = _looks_garbled(txt)
+        except Exception:
+            garbled = False
+
+        if len(meaningful) >= 3 and not spammy and not garbled:
+            last_decision_reason = "question_with_enough_meaningful_tokens"
+            logger.info("classification: Produtivo (%s)", last_decision_reason)
             return "Produtivo"
+        else:
+            last_decision_reason = "question_but_spam_or_garbled"
+            logger.info("classification: Improdutivo (%s)", last_decision_reason)
+            # fall through to other checks / fallback
 
     # spam/garbled checks and meaningful-token heuristic
     try:
@@ -223,8 +286,8 @@ def classify_text(text: str) -> str:
         garbled = False
 
     if len(meaningful) >= 3 and not spammy and not garbled:
-        LAST_DECISION_REASON = "many_meaningful_tokens_no_spam_garbled"
-        logger.info("classification: Produtivo (%s)", LAST_DECISION_REASON)
+        last_decision_reason = "many_meaningful_tokens_no_spam_garbled"
+        logger.info("classification: Produtivo (%s)", last_decision_reason)
         return "Produtivo"
 
     # Only load persisted model if explicitly enabled
@@ -235,12 +298,12 @@ def classify_text(text: str) -> str:
                 clf = EmailClassifier()
                 clf.load_model(MODEL_PATH)
                 pred = clf.classify(text)
-                LAST_DECISION_REASON = "model_loaded"
-                logger.info("classification: %s (%s)", pred, LAST_DECISION_REASON)
+                last_decision_reason = "model_loaded"
+                logger.info("classification: %s (%s)", pred, last_decision_reason)
                 return pred
         except Exception:
             logger.exception("Model load failed, falling back to keyword rules")
-            LAST_DECISION_REASON = "model_load_failed"
+            last_decision_reason = "model_load_failed"
 
     # final fallback using preprocess + keyword rules
     try:
@@ -250,8 +313,8 @@ def classify_text(text: str) -> str:
         cleaned = (text or "").lower()
 
     result = _keyword_fallback(cleaned)
-    LAST_DECISION_REASON = f"keyword_fallback ({len(re.findall(r'\\w+', cleaned))} tokens)"
-    logger.info("classification: %s (%s)", result, LAST_DECISION_REASON)
+    last_decision_reason = f"keyword_fallback ({len(re.findall(r'\\w+', cleaned))} tokens)"
+    logger.info("classification: %s (%s)", result, last_decision_reason)
     return result
 
 def classify_email(text: str) -> str:

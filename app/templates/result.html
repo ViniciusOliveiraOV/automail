@@ -17,9 +17,11 @@
           <h3>Texto original:</h3>
           <pre>{{ original or email }}</pre>
 
-          {% if debug_reason %}
+          {% if debug_reason or file_debug %}
           <h4>Debug:</h4>
-          <pre style="font-size:0.9rem; color:#666;">{{ debug_reason }}</pre>
+          <pre style="font-size:0.9rem; color:#666;">
+{{ debug_reason }}{% if file_debug %} — {{ file_debug }}{% endif %}
+          </pre>
           {% else %}
           <h4>Debug:</h4>
           <pre style="font-size:0.9rem; color:#666;">(nenhuma razão registrada)</pre>

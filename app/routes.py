@@ -1,8 +1,9 @@
-from typing import Dict, Any, cast
+from typing import Dict, Any, cast, Tuple, Union, List
 from flask import Blueprint, request, render_template, current_app, jsonify, Response
 from app.nlp.preprocess import preprocess_text
 from app.nlp.classifier import classify_text
 from app.ai.client import generate_response
+from io import BytesIO
 
 main = Blueprint("main", __name__)
 
@@ -27,14 +28,61 @@ def process_email_endpoint() -> Response:
     result = process_email_pipeline(text)
     return jsonify(result)
 
-from flask import request, render_template  # ensure these imports exist
+def _extract_text_from_file(f: Any) -> Tuple[str, str]:
+    try:
+        payload: Union[bytes, str] = f.read()
+    except Exception:
+        return "", "file_read_error"
 
-# replace or add the classify route implementation
+    # detect PDF by header or mimetype/filename
+    is_pdf = False
+    try:
+        header = payload[:5]
+        # be explicit about bytes vs str when checking the PDF header
+        if (isinstance(header, (bytes, bytearray)) and header == b"%PDF-") or getattr(f, "mimetype", "") == "application/pdf" or (getattr(f, "filename", "") or "").lower().endswith(".pdf"):
+            is_pdf = True
+    except Exception:
+        is_pdf = False
+
+    if is_pdf:
+        try:
+            from PyPDF2 import PdfReader
+            # ensure BytesIO gets bytes: handle bytes, bytearray, memoryview and fallback to encoding strings
+            if isinstance(payload, bytes):
+                bio_bytes = payload
+            elif isinstance(payload, (bytearray, memoryview)):
+                bio_bytes = bytes(payload)
+            else:
+                # fallback for str or other types
+                bio_bytes = str(payload).encode()
+            bio = BytesIO(bio_bytes)
+            reader = PdfReader(bio)
+            pages: List[str] = []
+            for p in reader.pages:
+                txt = p.extract_text() or ""
+                pages.append(txt)
+            content = "\n".join(pages).strip()
+            if content:
+                return content, "pdf_text_extracted"
+            return "", "pdf_no_text_extracted"
+        except Exception:
+            return "", "pdf_extraction_failed"
+
+    # non-pdf: try decode
+    try:
+        if isinstance(payload, (bytes, bytearray)):
+            content = payload.decode(errors="ignore")
+        else:
+            content = str(payload)
+        return content.strip(), "file_text_extracted" if content.strip() else "file_empty"
+    except Exception:
+        return "", "file_decode_failed"
+
 @main.route("/classify", methods=["POST"])
 def classify_route():
     # extract text (keep your existing extraction logic)
     text = (request.form.get("email_text") or "").strip()
-
+    file_debug = ""
     # if textarea empty, try other form fields
     if not text:
         for name in ("email", "text", "message", "content", "email_content", "body", "message_text"):
@@ -54,15 +102,12 @@ def classify_route():
     if not text and request.files:
         f = request.files.get("email_file") or next(iter(request.files.values()), None)
         if f:
-            try:
-                payload = f.read()
-                if isinstance(payload, bytes):
-                    payload = payload.decode(errors="ignore")
-                if payload and payload.strip():
-                    text = payload.strip()
-            except Exception:
-                # ignore binary/pdf parsing here; leave text empty
-                pass
+            extracted, file_debug = _extract_text_from_file(f)
+            if extracted:
+                text = extracted
+            else:
+                # do not set text to raw binary; leave empty so classifier fallback runs
+                text = ""
 
     text = text or ""
 
@@ -71,6 +116,7 @@ def classify_route():
     result = classify_email(text)
     debug_reason = get_last_decision_reason() or ""
 
+    # pass file_debug so template can show extraction status
     return render_template(
         "result.html",
         result=result,
@@ -79,6 +125,7 @@ def classify_route():
         original=text,
         email=text,
         debug_reason=debug_reason,
+        file_debug=file_debug,
     )
 
 # create alias endpoints so templates using main.index / main.classify resolve correctly
