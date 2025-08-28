@@ -9,12 +9,24 @@
 <body>
     <div class="container">
         <h1>Resultados da Classificação</h1>
-        <div class="result">
-            <h2>Categoria do Email: {{ category }}</h2>
-            <h3>Resposta Sugerida:</h3>
-            <p>{{ suggested_response }}</p>
+
+        <div class="box">
+          <h2>Categoria do Email:</h2>
+          <p>{{ resposta_sugerida or result or category }}</p>
+
+          <h3>Texto original:</h3>
+          <pre>{{ original or email }}</pre>
+
+          {% if debug_reason %}
+          <h4>Debug:</h4>
+          <pre style="font-size:0.9rem; color:#666;">{{ debug_reason }}</pre>
+          {% else %}
+          <h4>Debug:</h4>
+          <pre style="font-size:0.9rem; color:#666;">(nenhuma razão registrada)</pre>
+          {% endif %}
         </div>
-        <a href="{{ url_for('index') }}" class="btn">Voltar</a>
+
+        <a href="{{ url_for('main.index') }}">Voltar</a>
     </div>
 </body>
 </html>
