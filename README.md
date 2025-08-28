@@ -13,7 +13,7 @@ Este projeto é uma aplicação web que automatiza a classificação de e‑mail
 ## Estrutura do projeto
 
 ```
-email-classifier-app
+automail
 ├── app
 │   ├── __init__.py
 │   ├── main.py
@@ -46,7 +46,7 @@ email-classifier-app
 1. Clone o repositório:
    ```
    git clone <repository-url>
-   cd email-classifier-app
+   cd automail
    ```
 
 2. Crie e ative um ambiente virtual (recomendado) e instale dependências:
