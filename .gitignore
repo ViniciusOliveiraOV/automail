@@ -1,0 +1,53 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Distribution / packaging
+build/
+dist/
+*.egg
+*.egg-info/
+pip-wheel-metadata/
+*.whl
+
+# NLTK data
+nltk_data/
+nltk_data/*
+
+# Persisted models / large binaries
+email_classifier_model.pkl
+*.pkl
+
+# Tests / coverage
+.pytest_cache/
+.cache/
+.coverage
+htmlcov/
+
+# IDEs and editors
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS generated files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+
+# Environment variables
+.env
+.env.*.local
+
+# Sample data (if you want to ignore)
+#

@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Classificador de Emails</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Classificador de Emails</h1>
+        <form action="/classify" method="post" enctype="multipart/form-data">
+            <label for="emailInput">Insira o texto do email ou faça upload de um arquivo:</label>
+            <textarea id="emailInput" name="email_text" rows="10" cols="50" placeholder="Cole o texto do email aqui..."></textarea>
+            <input type="file" name="email_file" accept=".txt, .pdf">
+            <button type="submit">Classificar Email</button>
+        </form>
+    </div>
+</body>
+</html>

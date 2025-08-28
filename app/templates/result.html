@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resultados da Classificação de Email</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Resultados da Classificação</h1>
+        <div class="result">
+            <h2>Categoria do Email: {{ category }}</h2>
+            <h3>Resposta Sugerida:</h3>
+            <p>{{ suggested_response }}</p>
+        </div>
+        <a href="{{ url_for('index') }}" class="btn">Voltar</a>
+    </div>
+</body>
+</html>
