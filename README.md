@@ -64,6 +64,10 @@ email-classifier-app
 3. Run the application:
    ```
    python app/main.py
+
+   or
+
+   flask run
    ```
 
 ## Usage
