@@ -1,0 +1,20 @@
+version: "3.8"
+
+services:
+  backend:
+    build: .
+    # Em dev, monte o código para desenvolvimento iterativo
+    volumes:
+      - ./backend:/app/backend:rw
+      - ./.env:/app/backend/.env:ro
+    ports:
+      - "5000:5000"   # mapeamento para dev server Flask (opcional)
+      - "8000:8000"   # mapeamento para Gunicorn (produção)
+    environment:
+      - FLASK_ENV=development
+      - APP_CONFIG=development
+      - HOST=0.0.0.0
+      - PORT=5000
+    # Comando útil para desenvolvimento: executa o entrypoint Python (substitui o CMD do Dockerfile)
+    command: sh -c "cd /app/backend && python -m app.main"
+    # Para produção, remova 'volumes' e 'command' e use a imagem gerada (CMD do Dockerfile)
