@@ -10,23 +10,43 @@
     <div class="container">
         <h1>Resultados da Classificação</h1>
 
-        <div class="box">
-          <h2>Categoria do Email:</h2>
-          <p>{{ resposta_sugerida or result or category }}</p>
+                <div class="box">
+                    <h2>Categoria do Email:</h2>
+                    <p>{{ resposta_sugerida or result or category }}</p>
 
-          <h3>Texto original:</h3>
-          <pre>{{ original or email }}</pre>
+                    <h3>Texto original:</h3>
+                    <pre class="muted-pre">{{ original or email }}</pre>
 
-          {% if debug_reason or file_debug %}
-          <h4>Debug:</h4>
-          <pre style="font-size:0.9rem; color:#666;">
-{{ debug_reason }}{% if file_debug %} — {{ file_debug }}{% endif %}
-          </pre>
-          {% else %}
-          <h4>Debug:</h4>
-          <pre style="font-size:0.9rem; color:#666;">(nenhuma razão registrada)</pre>
-          {% endif %}
-        </div>
+                    <div class="score-panel">
+                        <div class="score-card">
+                            <h4>Pontuação (detalhes)</h4>
+                            {% if score_html %}
+                                <div class="score-details">{{ score_html|safe }}</div>
+                            {% else %}
+                                <div class="score-details">(sem informações de pontuação)</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="score-card">
+                            <h4>Decisão</h4>
+                            <div class="score-count">
+                                {% if resposta_sugerida or result or category %}
+                                    {{ resposta_sugerida or result or category }}
+                                {% else %}
+                                    (nenhuma)
+                                {% endif %}
+                            </div>
+                            <div class="score-details">Racional: <span style="color:#444">{{ debug_reason or debug or '' }}</span></div>
+                        </div>
+                    </div>
+
+                    {% if file_debug %}
+                        <div class="file-debug">
+                            <strong>Arquivo:</strong>
+                            <span> {{ file_debug }}</span>
+                        </div>
+                    {% endif %}
+                </div>
 
         <a href="{{ url_for('main.index') }}">Voltar</a>
     </div>

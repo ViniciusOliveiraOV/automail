@@ -65,3 +65,49 @@ button:hover {
 .result p {
     margin: 5px 0;
 }
+
+/* Score panel styles */
+.score-panel {
+    display: flex;
+    gap: 16px;
+    align-items: stretch;
+    margin-top: 18px;
+}
+
+.score-card {
+    flex: 1 1 0;
+    background: #ffffff;
+    border-radius: 8px;
+    padding: 12px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+    border: 1px solid #e6e9ee;
+}
+
+.score-card h4 {
+    margin: 0 0 8px 0;
+    font-size: 0.95rem;
+    color: #333;
+}
+
+.score-count {
+    font-size: 1.6rem;
+    font-weight: 700;
+}
+
+.score-good { color: #1b7a3a; }
+.score-bad  { color: #c62828; }
+
+.score-details { font-size: 0.85rem; color:#555; margin-top:8px }
+
+/* file debug panel */
+.file-debug {
+    margin-top: 14px;
+    background: #fff8e1;
+    border-left: 6px solid #ffcc00;
+    padding: 10px 12px;
+    border-radius: 6px;
+    color: #6b4f00;
+    font-size: 0.95rem;
+}
+
+.muted-pre { font-size:0.9rem; color:#666; white-space:pre-wrap; }
