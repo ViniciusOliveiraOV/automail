@@ -1,7 +1,9 @@
 FROM python:3.11-slim
 
-# Set the working directory
-WORKDIR /app
+# Use a conventional application directory inside the image. This layout is
+# host-agnostic and works the same whether the build runs on Linux, macOS or
+# Windows hosts because Docker packages the build context into a tar stream.
+WORKDIR /usr/src/app
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
@@ -9,18 +11,17 @@ ENV PYTHONUNBUFFERED=1
 # Install system dependencies if needed (uncomment for OCR)
 # RUN apt-get update && apt-get install -y --no-install-recommends tesseract-ocr libgl1 && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
-COPY requirements.txt .
-RUN pip install --upgrade pip
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy only requirements first to maximize layer caching
+COPY requirements.txt /usr/src/app/requirements.txt
+RUN pip install --upgrade pip && \
+	pip install --no-cache-dir -r /usr/src/app/requirements.txt
 
-# Copy backend (assuming backend/ folder containing app/)
-COPY backend/ ./backend
+# Copy the full project into the image. This keeps paths consistent across
+# hosts (no Windows/Unix path differences matter inside the container).
+COPY . /usr/src/app
 
-# Ensure the backend package is in the PYTHONPATH
-ENV PYTHONPATH=/app/backend
-
-WORKDIR /app/backend
+# Ensure the repository root is on PYTHONPATH so `import app` resolves.
+ENV PYTHONPATH=/usr/src/app
 
 # Expose the port the app runs on
 EXPOSE 8000
