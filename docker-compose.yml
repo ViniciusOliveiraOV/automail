@@ -18,6 +18,6 @@ services:
       - HOST=0.0.0.0
       - PORT=5000
     # Comando útil para desenvolvimento: executa o entrypoint Python (substitui o CMD do Dockerfile)
-  # run the app from the project root so `import app` resolves correctly
-  command: sh -c "python -m app.main"
+    # Run the app from the project root so `import app` resolves correctly
+    command: sh -c "python -m app.main"
     # Para produção, remova 'volumes' e 'command' e use a imagem gerada (CMD do Dockerfile)
