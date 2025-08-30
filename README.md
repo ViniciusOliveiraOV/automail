@@ -222,7 +222,6 @@ O sistema combina um classificador baseado em regras (heurísticas) com um fallb
   ## Contribuição e desenvolvimento
 
   - Tests: escreva pytest para lógica de classificação e pequenos testes de integração para `routes.py`.
-  - Frontend: mantenha o fragmento de classificação (`.score-panel`, `.score-card`) livre de estilos inline para permitir overrides.
   - CI: existe uma workflow que executa pytest e (opcionalmente) Cypress; ver `.github/workflows/ci.yml`.
 
   ## Como auditar uma decisão
