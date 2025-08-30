@@ -5,82 +5,82 @@ Este projeto é uma aplicação web que automatiza a classificação de e‑mail
 ## Funcionalidades
 
 
-  Aplicação Flask para classificar e‑mails em duas categorias: **Produtivo** (requer ação/resposta) e **Improdutivo** (não requer ação imediata).
-  O sistema combina um classificador baseado em regras (heurísticas) com um fallback opcional por ML e integração opcional a APIs LLM para casos ambíguos.
+Aplicação Flask para classificar e‑mails em duas categorias: **Produtivo** (requer ação/resposta) e **Improdutivo** (não requer ação imediata).
+O sistema combina um classificador baseado em regras (heurísticas) com um fallback opcional por ML e integração opcional a APIs LLM para casos ambíguos.
 
-  ## Estrutura do projeto 
+## Estrutura do projeto
 
   ```
   email-classifier-app/
-    cypress.config.js
-    docker-compose.dev.yml
-    docker-compose.prod.yml
-    docker-compose.yml
-    Dockerfile
-    Makefile
-    package.json
-    Procfile
-    README_CYPRESS.md
-    README.md
-    requirements.txt
-    visao-geral.png
-    app/
-      __init__.py
-      config.py
-      main.py
-      routes.py
-      __pycache__/
-        __init__.cpython-313.pyc
-        config.cpython-313.pyc
-        main.cpython-313.pyc
-        routes.cpython-313.pyc
-      ai/
-        __init__.py
-        client.py
-        __pycache__/
-      nlp/
-        __init__.py
-        classifier.py
-        preprocess.py
-        __pycache__/
-      static/
-        css/
-        js/
-      templates/
-        index.html
-        result.html
-      utils/
-        __init__.py
-        mail_client.py
-        pdf_parser.py
-    backend/
-      README.md
-    cypress/
-      e2e/
-        classify_spec.cy.js
-      fixtures/
-        sample_email.txt
-      support/
-        commands.js
-        e2e.js
-    frontend/
-    sample_emails/
-      productive_example.txt
-      unproductive_example.txt
-    scripts/
-      check_classifier_html.py
-    templates/
-      result.html
-    tests/
-      conftest.py
-      manual_test_classifier.py
-      test_bart_zero_shot.py
-      test_classifier_api.py
-      test_classifier_logic.py
-      test_classifier.py
-      test_confidence.py
-      test_frontend_structure.py
-      test_preprocess.py
+  ├── cypress.config.js
+  ├── docker-compose.dev.yml
+  ├── docker-compose.prod.yml
+  ├── docker-compose.yml
+  ├── Dockerfile
+  ├── Makefile
+  ├── package.json
+  ├── Procfile
+  ├── README_CYPRESS.md
+  ├── README.md
+  ├── requirements.txt
+  ├── visao-geral.png
+  ├── app/
+  │   ├── __init__.py
+  │   ├── config.py
+  │   ├── main.py
+  │   ├── routes.py
+  │   ├── __pycache__/
+  │   │   ├── __init__.cpython-313.pyc
+  │   │   ├── config.cpython-313.pyc
+  │   │   ├── main.cpython-313.pyc
+  │   │   └── routes.cpython-313.pyc
+  │   ├── ai/
+  │   │   ├── __init__.py
+  │   │   ├── client.py
+  │   │   └── __pycache__/
+  │   ├── nlp/
+  │   │   ├── __init__.py
+  │   │   ├── classifier.py
+  │   │   ├── preprocess.py
+  │   │   └── __pycache__/
+  │   ├── static/
+  │   │   ├── css/
+  │   │   └── js/
+  │   ├── templates/
+  │   │   ├── index.html
+  │   │   └── result.html
+  │   └── utils/
+  │       ├── __init__.py
+  │       ├── mail_client.py
+  │       └── pdf_parser.py
+  ├── backend/
+  │   └── README.md
+  ├── cypress/
+  │   ├── e2e/
+  │   │   └── classify_spec.cy.js
+  │   ├── fixtures/
+  │   │   └── sample_email.txt
+  │   └── support/
+  │       ├── commands.js
+  │       └── e2e.js
+  ├── frontend/
+  ├── sample_emails/
+  │   ├── productive_example.txt
+  │   └── unproductive_example.txt
+  ├── scripts/
+  │   └── check_classifier_html.py
+  ├── templates/
+  │   └── result.html
+  └── tests/
+    ├── conftest.py
+    ├── manual_test_classifier.py
+    ├── test_bart_zero_shot.py
+    ├── test_classifier_api.py
+    ├── test_classifier_logic.py
+    ├── test_classifier.py
+    ├── test_confidence.py
+    ├── test_frontend_structure.py
+    └── test_preprocess.py
   ```
 
   > Nota: arquivos de interesse: `app/nlp/classifier.py` (lógica principal), `app/routes.py` (upload/classify), `app/ai/client.py` (opcional LLM).
