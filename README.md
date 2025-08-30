@@ -2,10 +2,6 @@
 
 Este projeto é uma aplicação web que automatiza a classificação de e‑mails em duas categorias: **Produtivo** (requer ação/resposta) e **Improdutivo** (não requer ação imediata). A aplicação usa técnicas de processamento de linguagem natural (NLP) e regras heurísticas, com opção de inferência por modelos de Aprendizado de Máquina (Machine Learning/ML).
 
-![Visão geral do pipeline e arquitetura do projeto](visao-geral.png)
-
-_Figura: visão geral do pipeline de classificação e da organização do aplicativo (arquivo `visao-geral.png`)._
-
 ## Funcionalidades
 
 
