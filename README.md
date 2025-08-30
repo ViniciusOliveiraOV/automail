@@ -5,28 +5,10 @@ Este projeto é uma aplicação web que automatiza a classificação de e‑mail
 ## Funcionalidades
 
 
-## Estrutura do projeto
-
-```
-email-classifier-app/
-  docker-compose.dev.yml
-  docker-compose.prod.yml
-  docker-compose.yml
-  Dockerfile
-  Makefile
-  Procfile
-  README.md
-  requirements.txt
-  ```markdown
-  # Automail - App de classificação de e-mails
-
   Aplicação Flask para classificar e‑mails em duas categorias: **Produtivo** (requer ação/resposta) e **Improdutivo** (não requer ação imediata).
   O sistema combina um classificador baseado em regras (heurísticas) com um fallback opcional por ML e integração opcional a APIs LLM para casos ambíguos.
 
-  ## Objetivo deste README
-  Documentar como o projeto está organizado, como executar testes (incluindo Cypress), quais algoritmos são usados (heurísticas, ML, LLM) e como usar o Docker para desenvolvimento/produção.
-
-  ## Estrutura do projeto (completa)
+  ## Estrutura do projeto 
 
   ```
   email-classifier-app/
