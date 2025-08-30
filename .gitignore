@@ -49,5 +49,7 @@ desktop.ini
 .env
 .env.*.local
 
+# node 
+/node_modules
+
 # Sample data (if you want to ignore)
-#

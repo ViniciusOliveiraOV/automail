@@ -1,0 +1,13 @@
+{
+  "name": "automail-e2e",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "start": "flask run --host 127.0.0.1 --port 5000",
+    "cypress:open": "cypress open",
+    "cypress:run": "cypress run"
+  },
+  "devDependencies": {
+    "cypress": "^12.17.0"
+  }
+}

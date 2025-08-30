@@ -1,54 +1,80 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Resultados da Classificação de Email</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
-</head>
-<body>
-    <div class="container">
-        <h1>Resultados da Classificação</h1>
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Resultado - Classificador de Emails</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link rel="stylesheet" href="/static/css/styles.css">
+    </head>
+    <body class="bg-slate-50 min-h-screen text-slate-800">
+        <main class="max-w-5xl mx-auto p-6">
+            <a href="/" class="inline-block text-sm mb-4 text-slate-600 hover:underline">← Voltar</a>
 
-                <div class="box">
-                    <h2>Categoria do Email:</h2>
-                    <p>{{ resposta_sugerida or result or category }}</p>
+            <header class="mb-6">
+                <h1 class="text-2xl font-semibold" style="color:black">Resultado da Classificação</h1>
+                <p class="text-sm text-slate-500">Decisão: <strong>{{ decision }}</strong></p>
+            </header>
 
-                    <h3>Texto original:</h3>
-                    <pre class="muted-pre">{{ original or email }}</pre>
+            <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Score / Summary column -->
+                <div class="lg:col-span-1">
+                    <div class="bg-white shadow-sm rounded-lg p-4 panel">
+                        <h2 class="text-lg font-medium mb-3">Resumo</h2>
 
-                    <div class="score-panel">
-                        <div class="score-card">
-                            <h4>Pontuação (detalhes)</h4>
-                            {% if score_html %}
-                                <div class="score-details">{{ score_html|safe }}</div>
+                        <!-- classifier fragment (produced by classifier, safe because we sanitize earlier) -->
+                        <div id="classifier-fragment" class="space-y-3">
+                            {{ score_html|safe }}
+                        </div>
+
+                                    <!-- numeric details fallback/verbose view (compact to avoid duplicate panels) -->
+                                    {% if details %}
+                                    <div class="mt-4 text-sm text-slate-700">
+                                        <div class="font-medium mb-2">Detalhes</div>
+                                        <ul class="list-none space-y-1 text-xs text-slate-600">
+                                            {% for k, v in details.items() %}
+                                                <li><span class="text-slate-500">{{ k }}:</span> <span class="font-mono text-slate-800">{{ v }}</span></li>
+                                            {% endfor %}
+                                        </ul>
+                                    </div>
+                                    {% endif %}
+
+                        {% if confidence is not none %}
+                        <p class="mt-4 text-sm text-slate-500">Confiança: <strong>{{ '%.1f'|format(confidence * 100) }}%</strong></p>
+                        {% endif %}
+
+                    </div>
+                </div>
+
+                <!-- Original text column -->
+                <div class="lg:col-span-2">
+                    <div class="bg-white shadow-sm rounded-lg p-6 panel">
+                        <h2 class="text-lg font-medium mb-3">Texto original</h2>
+                        <div class="prose max-w-none text-sm text-slate-800">
+                            {% if display_html %}
+                                {{ display_html|safe }}
                             {% else %}
-                                <div class="score-details">(sem informações de pontuação)</div>
+                                <pre class="whitespace-pre-wrap">{{ text }}</pre>
                             {% endif %}
                         </div>
 
-                        <div class="score-card">
-                            <h4>Decisão</h4>
-                            <div class="score-count">
-                                {% if resposta_sugerida or result or category %}
-                                    {{ resposta_sugerida or result or category }}
-                                {% else %}
-                                    (nenhuma)
-                                {% endif %}
-                            </div>
-                            <div class="score-details">Racional: <span style="color:#444">{{ debug_reason or debug or '' }}</span></div>
-                        </div>
+                        {% if file_debug %}
+                        <details class="mt-4 text-sm text-slate-500">
+                            <summary class="cursor-pointer">Debug do arquivo</summary>
+                            <pre class="mt-2 text-xs bg-slate-50 p-3 rounded">{{ file_debug }}</pre>
+                        </details>
+                        {% endif %}
+
+                        {% if debug %}
+                        <details class="mt-4 text-sm text-slate-500">
+                            <summary class="cursor-pointer">Debug</summary>
+                            <pre class="mt-2 text-xs bg-slate-50 p-3 rounded">{{ debug }}</pre>
+                        </details>
+                        {% endif %}
+
                     </div>
-
-                    {% if file_debug %}
-                        <div class="file-debug">
-                            <strong>Arquivo:</strong>
-                            <span> {{ file_debug }}</span>
-                        </div>
-                    {% endif %}
                 </div>
-
-        <a href="{{ url_for('main.index') }}">Voltar</a>
-    </div>
-</body>
+            </section>
+        </main>
+    </body>
 </html>

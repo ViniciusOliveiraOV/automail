@@ -1,9 +1,11 @@
 from typing import Dict, Any, cast, Tuple, Union, List
 from flask import Blueprint, render_template, request, Response, jsonify, current_app
 from app.nlp.preprocess import preprocess_text
-from app.nlp.classifier import classify_text_html, classify_email, get_last_decision_reason
+from app.nlp.classifier import classify_text_html, classify_email, get_last_decision_reason, classify_text_with_confidence
 from app.ai.client import generate_response
 from io import BytesIO
+import html as _html
+import re
 
 bp = Blueprint("main", __name__)
 # alias expected by app.main
@@ -98,7 +100,15 @@ def classify():
     if request.method == "POST":
         # accept multiple possible form field names (legacy and new)
         text = request.form.get("text") or request.form.get("email_text") or ""
+        # safe defaults for template variables (avoid unbound locals on error paths)
         file_debug = ""
+        decision = ""
+        score_html = ""
+        details: Dict[str, Any] = {}
+        confidence = None
+        debug = ""
+        needs_review = False
+        display_html = ""
 
         # if no text in form, try uploaded file(s)
         if not text and request.files:
@@ -114,18 +124,57 @@ def classify():
 
         # use HTML-aware classifier so we can render the score fragment in the template
         try:
-            decision, score_html = classify_text_html(text)
+            # primary: get decision, HTML fragment and structured details
+            decision, score_html, details = classify_text_html(text)
         except Exception:
             decision = classify_email(text)
             score_html = ""
+            details = {}
+
+        # compute confidence and whether ML was used / human review needed
+        try:
+            decision2, confidence, used_ml = classify_text_with_confidence(text)
+        except Exception:
+            # fallback: keep previous decision, low confidence
+            decision2, confidence, used_ml = decision, 0.2, False
+        # if ML produced a different label, prefer the ML-backed decision when confidence is higher
+        if used_ml and decision2 != decision:
+            decision = decision2
+        needs_review = (get_last_decision_reason() == "needs_human_review")
         debug = get_last_decision_reason()
+
+        # prepare a display-friendly HTML version of the email text (keep original text for classification)
+        def _format_text_for_display(s: str) -> str:
+            if not s:
+                return ""
+            # unify newlines and normalize whitespace
+            s2 = s.replace('\r\n', '\n').replace('\r', '\n')
+            # mark paragraph breaks where there are 2+ newlines (or newline + spaces + newline)
+            s2 = re.sub(r"\n\s*\n+", "\n\n", s2)
+            # split into paragraphs
+            paras = [p.strip() for p in s2.split('\n\n') if p.strip()]
+            out_paras: List[str] = []
+            for p in paras:
+                # collapse any remaining whitespace (including single newlines) into a single space
+                collapsed = re.sub(r"\s+", ' ', p).strip()
+                out_paras.append(_html.escape(collapsed))
+            if not out_paras:
+                return _html.escape(re.sub(r"\s+", ' ', s2).strip())
+            return '<p>' + '</p><p>'.join(out_paras) + '</p>'
+
+        display_html = _format_text_for_display(text)
+
         return render_template(
             "result.html",
             # primary names used by new templates
             decision=decision,
             text=text,
+            display_html=display_html,
             score_html=score_html,
+            details=details,
             debug=debug,
+            confidence=confidence,
+            needs_review=needs_review,
             # aliases to keep backward-compatible templates working
             resposta_sugerida=decision,
             result=decision,

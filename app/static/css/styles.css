@@ -1,113 +1,111 @@
-body {
-    font-family: Arial, sans-serif;
-    margin: 0;
-    padding: 0;
-    background-color: #f4f4f4;
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
+html, body {
+  height: 100%;
+  background-color: #2f3030; /* fundo suave */
+  font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+  color: #ffffff; /* texto sempre visível */
 }
 
-header {
-    background: #35424a;
-    color: #ffffff;
-    padding: 10px 0;
-    text-align: center;
+h1, h2, h3 {
+  color: #ffffff;
+  font-weight: 700;
 }
 
-h1 {
-    margin: 0;
+label {
+  font-weight: 600;
+  color: #374151;
 }
 
-.container {
-    width: 80%;
-    margin: auto;
-    overflow: hidden;
+textarea, input, select {
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  width: 100%;
+  color: #111827;
+  background-color: #fff;
 }
 
-form {
-    background: #ffffff;
-    padding: 20px;
-    border-radius: 5px;
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-}
-
-input[type="file"],
-textarea {
-    width: 100%;
-    padding: 10px;
-    margin: 10px 0;
-    border: 1px solid #ccc;
-    border-radius: 4px;
+textarea:focus, input:focus {
+  outline: none;
+  border-color: #6366f1; /* Indigo vibe */
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.3);
 }
 
 button {
-    background: #35424a;
-    color: #ffffff;
-    border: none;
-    padding: 10px 15px;
-    cursor: pointer;
-    border-radius: 5px;
+  background: linear-gradient(to right, #6366f1, #8b5cf6);
+  color: rgb(0, 0, 0);
+  font-weight: 600;
+  padding: 0.75rem 1.25rem;
+  border-radius: 0.5rem;
+  transition: all 0.2s;
 }
 
 button:hover {
-    background: #45a049;
+  filter: brightness(1.1);
+  transform: translateY(-1px);
 }
 
-.result {
-    margin-top: 20px;
-    padding: 15px;
-    background: #e7f3fe;
-    border-left: 6px solid #2196F3;
+/* Explicit project primary button to avoid Tailwind specificity conflicts */
+.btn-primary {
+  background: linear-gradient(to right, #6366f1, #8b5cf6);
+  color: #ffffff !important;
+  font-weight: 600;
+  padding: 0.75rem 1.25rem;
+  border-radius: 0.5rem;
+  transition: all 0.18s ease;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.btn-primary:hover{ filter: brightness(1.05); transform: translateY(-1px); }
+
+/* Target the visible "Escolher arquivo" span that follows the hidden file input.
+   Using the adjacent sibling selector ensures this style applies even if Tailwind
+   utilities are present or inspector shows only the text node's path. */
+input[type="file"].sr-only + span,
+label input[type="file"].sr-only + span {
+  background: #000 !important;
+  color: #fff !important;
+  padding: 0.5rem 1rem !important;
+  border-radius: 0.375rem !important;
+  border: 1px solid #000 !important;
+  font-size: 0.9rem !important;
+  display: inline-flex !important;
+  align-items: center !important;
 }
 
-.result h2 {
-    margin: 0;
+input[type="file"].sr-only + span:hover,
+label input[type="file"].sr-only + span:hover {
+  background: #111 !important;
 }
 
-.result p {
-    margin: 5px 0;
+
+.card {
+  background: white;
+  border-radius: 1rem;
+  padding: 2rem;
+  box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1),
+              0 4px 6px -2px rgba(0,0,0,0.05);
 }
 
-/* Score panel styles */
-.score-panel {
-    display: flex;
-    gap: 16px;
-    align-items: stretch;
-    margin-top: 18px;
+/* Ensure panels meant to be white remain white and readable when the page
+   uses a dark global background. Use a specific .panel helper and also
+   reinforce Tailwind's .bg-white utility when necessary. */
+.panel, .bg-white {
+  background-color: #ffffff !important;
+  color: #0f172a !important; /* slate-900 */
+  box-shadow: 0 8px 30px rgba(2,6,23,0.12) !important;
+  border: 1px solid rgba(15,23,42,0.06) !important;
 }
 
-.score-card {
-    flex: 1 1 0;
-    background: #ffffff;
-    border-radius: 8px;
-    padding: 12px;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.05);
-    border: 1px solid #e6e9ee;
+/* Ensure typographic content inside panels is dark for contrast */
+.panel .prose, .panel p, .panel pre, .panel code, .panel dd {
+  color: #0f172a !important;
 }
 
-.score-card h4 {
-    margin: 0 0 8px 0;
-    font-size: 0.95rem;
-    color: #333;
-}
-
-.score-count {
-    font-size: 1.6rem;
-    font-weight: 700;
-}
-
-.score-good { color: #1b7a3a; }
-.score-bad  { color: #c62828; }
-
-.score-details { font-size: 0.85rem; color:#555; margin-top:8px }
-
-/* file debug panel */
-.file-debug {
-    margin-top: 14px;
-    background: #fff8e1;
-    border-left: 6px solid #ffcc00;
-    padding: 10px 12px;
-    border-radius: 6px;
-    color: #6b4f00;
-    font-size: 0.95rem;
-}
-
-.muted-pre { font-size:0.9rem; color:#666; white-space:pre-wrap; }
+/* Slight tweak for the small score boxes rendered by classifier */
+.score-panel .score-card { background: linear-gradient(180deg, #ffffff, #f8fafc); border-radius: 0.5rem; padding: 0.75rem; }
+.score-panel .score-count { color: #059669; font-weight:700; font-size:1.25rem }
+.score-panel .score-card:nth-child(2) .score-count { color: #ef4444 }

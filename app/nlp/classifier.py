@@ -194,6 +194,10 @@ def _looks_garbled(text: str) -> bool:
     - too many tokens with digits/symbols
     """
     t = (text or "").lower()
+    # skip garbled detection for reasonably long texts (likely human-written prose)
+    if len(text or "") > 200:
+        return False
+
     tokens = re.findall(r"[a-zA-Zçáéíóúâêîôûãõàèìòù]+", t)  # include common accented letters
     if not tokens:
         return True
@@ -223,9 +227,72 @@ def _looks_garbled(text: str) -> bool:
     garbled_ratio = garbled_count / len(tokens)
 
     # If many tokens are garbled, or many tokens contain digits, consider garbled
-    if garbled_ratio > 0.4 or (digit_tokens / max(1, len(tokens))) > 0.4:
+    # Use more conservative thresholds to avoid false positives on normal text
+    if garbled_ratio > 0.6 or (digit_tokens / max(1, len(tokens))) > 0.5:
         return True
     return False
+
+
+def _looks_like_feed(text: str) -> bool:
+    """
+    Heuristic to detect feed/news-like content (multiple short article snippets,
+    newsletter dumps, or social feed exports). These often contain markers like
+    'Ler mais', 'Voto positivo', 'Comentar', 'Postado', 'Quora', 'Leia mais', etc.
+    Return True when multiple such markers or repeated article blocks are present.
+    """
+    if not text:
+        return False
+    t = text.lower()
+    markers = [
+        "ler mais", "leia mais", "voto positivo", "votos", "comentar", "postado",
+        "quora", "notícias", "noticias", "leia também", "ver mais", "ler mais »"
+    ]
+    # simple marker count
+    marker_count = sum(t.count(m) for m in markers)
+    if marker_count >= 2:
+        return True
+
+    # count per-line markers (many feed exports have repeated short blocks)
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    perline = 0
+    for ln in lines:
+        ln_l = ln.lower()
+        if any(m in ln_l for m in ("ler mais", "leia mais", "voto positivo", "comentar")):
+            perline += 1
+    if perline >= 2:
+        return True
+
+    # heuristic: many short headline-like lines (>3 lines, each shorter than 120 chars)
+    short_lines = [ln for ln in lines if 0 < len(ln) <= 140]
+    if len(short_lines) >= 6 and len(lines) / max(1, len(short_lines)) < 3:
+        return True
+
+    return False
+
+def _contains_actionable_elements(text: str) -> bool:
+    """
+    Detect if the email contains elements that require user interaction:
+    - urls (http/https/www)
+    - instructions like 'clique', 'click here', 'botão', 'button'
+    - explicit order words near links (e.g., 'clique no botão', 'acesse o link')
+    Returns True when an actionable element is present.
+    """
+    if not text:
+        return False
+    t = text.lower()
+    # urls
+    if re.search(r"https?://\S+|www\.\S+", t):
+        return True
+    # email/payment/order patterns with 'click' / 'clique' / 'botão' nearby
+    if re.search(r"\bclick here\b|\bclique aqui\b|\bclique no botão\b|\bbotão\b|\bacesse o link\b|\bconsulte o pedido\b", t):
+        return True
+    # short 'click' + 'order' context
+    if "clique" in t or "click" in t or "botão" in t or "button" in t:
+        # ensure these mentions are not in a purely feed-like context by checking for 'ler mais' nearby
+        if not re.search(r"ler mais|leia mais|voto positivo|comentar", t):
+            return True
+    return False
+
 
 KEYWORDS_PT = {
     "revisar", "confirmar", "prazo", "reunião", "avaliacao", "avaliar",
@@ -280,11 +347,23 @@ def _score_text(text: str) -> Tuple[int, int, Dict[str, int]]:
         details["action_verb"] = action_count
 
     # request patterns (phrase matches)
+    # tighten detection: only count a request if it appears in a sentence
+    # that also contains an action-verb stem or an explicit interrogative marker ("?")
     req_count = 0
+    # split into coarse sentences to avoid counting unrelated occurrences in feeds
+    sentences = re.split(r"[\n\.!?]+", text or "")
     for p in REQUEST_PATTERNS:
-        # count non-overlapping occurrences in normalized text
-        if p in t_norm:
-            req_count += t_norm.count(p)
+        p_norm = _normalize_for_matching(p)
+        for sent in sentences:
+            s_norm = _normalize_for_matching(sent)
+            if not s_norm:
+                continue
+            if p_norm in s_norm:
+                # check for action verb presence in sentence
+                has_action = any(stem in s_norm for stem in ACTION_VERBS)
+                # or interrogative / polite marker
+                if '?' in sent or has_action:
+                    req_count += 1
     if req_count:
         prod_score += req_count
         details["request_pattern"] = req_count
@@ -340,6 +419,16 @@ def _apply_overrides(prod_score: int, imp_score: int, details: Dict[str, int], t
         return fb, "no_score_fallback"
 
     # clear major majority
+    # interaction detection: if the email contains actionable elements (links, buttons,
+    # explicit 'clique' instructions or 'click here') treat as Produtivo since it
+    # requires user interaction. This replaces the prior feed-like override which
+    # was marking many legitimate transactional/actionable emails as improdutivo.
+    try:
+        if _contains_actionable_elements(text):
+            return "Produtivo", "contains_action"
+    except Exception:
+        logger.debug("actionable element detection failed")
+
     if prod_score >= imp_score + 2:
         return "Produtivo", "score_majority"
     if imp_score >= prod_score + 2:
@@ -354,6 +443,109 @@ def _apply_overrides(prod_score: int, imp_score: int, details: Dict[str, int], t
     # exact tie: use keyword fallback
     fb = _keyword_fallback(text)
     return fb, "tie_fallback"
+
+
+# -- confidence / ML fallback support --
+_ml_clf = None
+
+def _load_ml_model_if_requested():
+    """Lazily load a saved sklearn model if environment requests it. Safe no-op otherwise."""
+    global _ml_clf
+    try:
+        if _ml_clf is not None:
+            return
+        if os.environ.get("LOAD_MODEL", "0") != "1":
+            return
+        if not os.path.exists(MODEL_PATH):
+            logger.info("ML model requested but MODEL_PATH not found: %s", MODEL_PATH)
+            return
+        clf = EmailClassifier()
+        clf.load_model(MODEL_PATH)
+        _ml_clf = clf
+        logger.info("Loaded ML model from %s", MODEL_PATH)
+    except Exception:
+        logger.exception("failed loading ML model; proceeding without it")
+
+def _try_ml_classify(text: str) -> Union[str, None]:
+    """Return ML label or None if unavailable/error."""
+    _load_ml_model_if_requested()
+    if _ml_clf is None:
+        return None
+    try:
+        return _ml_clf.classify(text)
+    except Exception:
+        logger.exception("ml classify failed")
+        return None
+
+def _compute_confidence(prod_score: int, imp_score: int, details: Dict[str, int]) -> float:
+    """Compute a heuristic confidence in [0.0, 1.0] from scores/details.
+    - large difference => higher confidence
+    - presence of action/request/work_context increases confidence
+    - no signals => low confidence
+    """
+    total = prod_score + imp_score
+    if total <= 0:
+        return 0.15
+    base = abs(prod_score - imp_score) / float(total)
+    # boost for strong signals
+    boost = 0.0
+    if details.get("action_verb"):
+        boost += 0.15
+    if details.get("request_pattern"):
+        boost += 0.15
+    if details.get("work_context"):
+        boost += 0.1
+    if details.get("cooccurrence_boost"):
+        boost += 0.1
+    conf = min(1.0, base + boost)
+    # clamp low-confidence cases a bit higher if base is tiny but boost exists
+    return round(conf, 3)
+
+def classify_text_with_confidence(text: str, ml_threshold: float = 0.45) -> Tuple[str, float, bool]:
+    """Return (decision_label, confidence, used_ml_flag).
+    If confidence < ml_threshold and an ML model is available, use ML as a fallback.
+    If ML not available and confidence low, returns heuristic decision with low confidence and needs_review True.
+    """
+    global last_decision_reason
+    last_decision_reason = ""
+
+    if not text or not text.strip():
+        last_decision_reason = "empty_or_whitespace"
+        return "Improdutivo", 0.0, False
+
+    # hard filters
+    try:
+        if _looks_spammy(text) or _looks_garbled(text):
+            last_decision_reason = "hard_filter_spam_or_garbled"
+            return "Improdutivo", 1.0, False
+    except Exception:
+        logger.exception("error in hard filters; proceeding to scoring")
+
+    try:
+        prod_score, imp_score, details = _score_text(text)
+        decision, reason = _apply_overrides(prod_score, imp_score, details, text)
+        conf = _compute_confidence(prod_score, imp_score, details)
+        last_decision_reason = reason
+
+        used_ml = False
+        if conf < ml_threshold:
+            # low confidence: try ML fallback if available
+            ml_label = _try_ml_classify(text)
+            if ml_label:
+                decision = ml_label
+                last_decision_reason = "ml_fallback"
+                conf = max(conf, 0.75)
+                used_ml = True
+            else:
+                # mark for human review (routes can use this)
+                last_decision_reason = "needs_human_review"
+
+        return decision, conf, used_ml
+    except Exception:
+        logger.exception("error in scoring engine; falling back to keyword heuristic")
+        fallback = _keyword_fallback(text)
+        last_decision_reason = "keyword_fallback"
+        return fallback, 0.25, False
 
 
 def classify_text(text: str) -> str:
@@ -426,47 +618,40 @@ def classify_email(text: str) -> str:
     return classify_text(text)
 
 def _render_score_html(prod_score: int, imp_score: int, details: Dict[str,int], reason: str | None = None) -> str:
-    """
-    Return a small HTML fragment showing produtivo/improdutivo scores and details.
-    Inline styles ensure it renders in any simple web UI.
-    """
-    prod_color = "#2ecc71"   
-    imp_color = "#e74c3c"    
-    neutral_color = "#555"
+        detail_items: list[str] = []
+        for k, v in (details or {}).items():
+                if v <= 0:
+                        continue
+                key_escaped = _html.escape(k)
+                if k in ("action_verb", "request_pattern", "work_context", "cooccurrence_boost"):
+                        detail_items.append(f"<li class=\"score-details\"><code>{key_escaped}</code> <span class=\"score-good\">+{v}</span></li>")
+                else:
+                        detail_items.append(f"<li class=\"score-details\"><code>{key_escaped}</code> <span class=\"score-bad\">+{v}</span></li>")
 
-    # build detail lines (mark which side)
-    detail_items: list[str] = []
-    for k, v in (details or {}).items():
-        if v <= 0:
-            continue
-        # decide side
-        if k in ("action_verb", "request_pattern", "work_context", "cooccurrence_boost"):
-            side = f'<span style="color:{prod_color};font-weight:600">+{v}</span>'
-        else:
-            side = f'<span style="color:{imp_color};font-weight:600">+{v}</span>'
-        detail_items.append(f'<li><code style="color:{neutral_color}">{_html.escape(k)}</code> {side}</li>')
+        details_html = "<ul class=\"score-list\">" + "".join(detail_items) + "</ul>" if detail_items else ""
 
-    details_html = "<ul style='margin:6px 0 0 18px;padding:0;'>" + "".join(detail_items) + "</ul>" if detail_items else ""
+        reason_html = f'<div class="score-details">reason: {_html.escape(str(reason or ""))}</div>'
 
-    reason_html = f'<div style="color:{neutral_color};font-size:12px;margin-top:6px">reason: {_html.escape(str(reason or ""))}</div>'
-
-    html = f"""
-    <div style="font-family:Segoe UI,Arial,sans-serif">
-      <div style="display:flex;gap:12px;align-items:center">
-        <div style="background:{prod_color};color:#fff;padding:6px 10px;border-radius:6px;">
-          Produtivo: <strong>{prod_score}</strong>
+        # semantic structure: two small score cards followed by details and reason
+        html = f"""
+        <div class="score-render">
+            <div class="score-panel" role="group" aria-label="Pontuação">
+                <div class="score-card">
+                    <h4>Produtivo</h4>
+                    <div class="score-count">{prod_score}</div>
+                </div>
+                <div class="score-card">
+                    <h4>Improdutivo</h4>
+                    <div class="score-count">{imp_score}</div>
+                </div>
+            </div>
+            {details_html}
+            {reason_html}
         </div>
-        <div style="background:{imp_color};color:#fff;padding:6px 10px;border-radius:6px;">
-          Improdutivo: <strong>{imp_score}</strong>
-        </div>
-      </div>
-      {details_html}
-      {reason_html}
-    </div>
-    """
-    return html
+        """
+        return html
 
-def classify_text_html(text: str) -> Tuple[str, str]:
+def classify_text_html(text: str) -> Tuple[str, str, Dict[str, int]]:
     """
     Run scoring and return (decision, html_fragment).
     Does not change existing classify_text behavior.
@@ -483,8 +668,8 @@ def classify_text_html(text: str) -> Tuple[str, str]:
         reason = "fallback_html"
 
     html = _render_score_html(prod_score, imp_score, details, reason)
-    return decision, html
+    return decision, html, details
 
-def classify_email_html(text: str) -> Tuple[str, str]:
-    """Alias for web UI to get (decision, html)."""
+def classify_email_html(text: str) -> Tuple[str, str, Dict[str, int]]:
+    """Alias for web UI to get (decision, html, details)."""
     return classify_text_html(text)

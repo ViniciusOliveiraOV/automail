@@ -4,41 +4,55 @@ Este projeto é uma aplicação web que automatiza a classificação de e‑mail
 
 ## Funcionalidades
 
-- Envio de e‑mails em `.txt` ou `.pdf` ou colagem do texto diretamente.
-- Classificação automática em Produtivo / Improdutivo.
-- Sugestões de resposta automáticas (quando configuradas).
-- Interface web simples e orientada ao usuário.
-- Campo "Debug" exibindo a razão da decisão.
 
 ## Estrutura do projeto
 
 ```
-automail
-├── app
-│   ├── __init__.py
-│   ├── main.py
-│   ├── routes.py
-│   ├── nlp
-│   │   ├── __init__.py
-│   │   ├── preprocess.py
-│   │   └── classifier.py
-│   ├── ai
-│   │   ├── __init__.py
-│   │   └── client.py
-│   ├── utils
-│   │   ├── __init__.py
-│   │   └── pdf_parser.py
-│   ├── templates
-│   │   ├── index.html
-│   │   └── result.html
-│   └── static
-│       ├── css
-│       └── js
-├── tests
-├── sample_emails
-├── Dockerfile
-├── requirements.txt
-└── README.md
+email-classifier-app/
+  docker-compose.dev.yml
+  docker-compose.prod.yml
+  docker-compose.yml
+  Dockerfile
+  Makefile
+  Procfile
+  README.md
+  requirements.txt
+  app/
+    __init__.py
+    config.py
+    main.py
+    routes.py
+    ai/
+      client.py
+    nlp/
+      classifier.py
+      preprocess.py
+    static/
+      css/
+      js/
+    templates/
+      index.html
+      result.html
+    utils/
+      mail_client.py
+      pdf_parser.py
+  backend/
+    .env
+    .gitkeep
+    README.md
+  frontend/
+  sample_emails/
+    productive_example.txt
+    unproductive_example.txt
+  templates/
+    result.html
+  tests/
+    conftest.py
+    manual_test_classifier.py
+    test_bart_zero_shot.py
+    test_classifier.py
+    test_confidence.py
+    test_preprocess.py
 ```
 
 ## Instalação
@@ -72,55 +86,30 @@ automail
    python -m app.main
    ```
 
-## Uso básico
-
-- Abra `http://localhost:5000` no navegador.
 - Cole o texto do e‑mail ou anexe um PDF / TXT.
 - Envie o formulário e veja o resultado com categoria e motivo (debug).
 
 ## Visão geral do pipeline de classificação
 
-O fluxo principal é: entrada do usuário → extração de texto → pré‑processamento → heurísticas / ML → resultado.
-
-- Entrada prioritária: se o usuário colar texto no campo da página, esse texto é usado diretamente — é o caminho mais rápido e confiável.
-- Upload de arquivo: se não houver texto no formulário, o app verifica se o usuário enviou um arquivo.
-- Detecção de PDF: quando for um PDF, o sistema tenta extrair o texto interno (como copiar/colar) usando uma biblioteca chamada PyPDF2.
-- Se a extração falhar: alguns PDFs são imagens (scan) e não contêm texto pesquisável — aí há uma segunda tentativa usando OCR (reconhecimento óptico de caracteres), que “lê” a imagem e transforma em texto.
-- Outros formatos/arquivos: arquivos que não são PDF são lidos como bytes e tentamos decodificá‑los para texto; se não for possível, o app sinaliza que não conseguiu extrair conteúdo.
-- Resultado prático: texto do formulário > texto extraído do PDF > texto obtido por OCR > arquivo sem texto; o app mostra um indicador (file_debug) informando qual método foi usado.
 - Normalização: lowercase, remoção de stopwords e tokenização.
 - Heurísticas:
   - Palavras‑chave produtivas (ex.: revisar, confirmar, prazo, reunião) → Produtivo.
   - Pergunta ("?") avaliada com tokens significativos e checagem anti‑spam.
-  - Saudações/agradecimentos curtos sem indicadores de ação → Improdutivo.
   - Detectores de spam/ruído (clusters de consoantes, alta proporção de símbolos/dígitos) evitam falsos positivos.
 - Se o modelo de IA estiver ligado, ele tenta decidir sozinho nos casos duvidosos; se não estiver, o sistema usa regras simples e previsíveis que sempre retornam um resultado.
 
-## Critérios de classificação para PDFs
-
-- PDFs com texto extraído são classificados pelo mesmo pipeline.
 - PDFs sem texto extraível podem ser marcados como Improdutivo ou sinalizados para revisão.
 - OCR é opcional e requer dependências adicionais (Tesseract, Pillow, PyMuPDF).
 
-## Testes com Gmail
-
-- Manual: copiar corpo do e‑mail e colar na área de texto.
 - Automatizado: script IMAP que baixa mensagens e posta para `/classify`.
 - Uso de ngrok recomendado para expor o servidor durante testes externos.
-
-## Dependências e OCR (opcional)
 
 - Recomendado: PyPDF2 (`pip install PyPDF2`).
 - Para OCR: PyMuPDF / Pillow / pytesseract e instalação do binário Tesseract (opcional).
 
-## Boas práticas
-
 - Ajuste limiares e listas de palavras conforme seu domínio.
 - Registre sempre a razão da decisão (debug) para monitorar e melhorar regras.
 
-## Recursos futuros
-
-- Integração com Gmail API (OAuth) para ingestão direta.
 - Pipeline de OCR (reconhecimento óptico de caracteres) mais robusto para PDFs escaneados.
 - Interface para rotulagem manual e re‑treino do modelo ML.
 
@@ -129,5 +118,37 @@ O fluxo principal é: entrada do usuário → extração de texto → pré‑pro
 Contribuições são bem‑vindas. Abra uma issue ou envie um pull request.
 
 ## Licença
+
+MIT
+
+## .env / variáveis
+
+Veja `.env.example` no repositório — ele contém todas as variáveis que o projeto usa (SECRET_KEY, HF_API_TOKEN, GROK_API_KEY, ENABLE_OCR, LOAD_MODEL, MODEL_PATH, IMAP_*, AI_DBG etc.).
+
+## Como executar (resumido)
+
+Recomendado (Docker):
+
+```powershell
+make build
+make up
+```
+
+Alternativa (local, sem Docker):
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python -m app.main
+```
+
+## Testes
+
+Rode os testes com pytest:
+
+```powershell
+pytest -q
+```
 
 Projeto licenciado sob MIT. (Adicione o arquivo LICENSE se desejar.)

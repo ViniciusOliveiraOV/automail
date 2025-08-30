@@ -68,7 +68,9 @@ dev-health:
 	@sh -c 'i=0; until [ $$i -ge 15 ]; do if curl -sSf http://localhost:5000 >/dev/null 2>&1; then echo "backend OK"; exit 0; fi; i=$$((i+1)); sleep 1; done; echo "backend UNHEALTHY"; exit 1'
 
 # convenience aliases to match original names
-build: prod-build
+# NOTE: make build now performs the development image build (so a newcomer
+# can run `make build` then `make up` without running multiple commands).
+build: dev-build
 down: dev-down
 logs: dev-logs
 ps: dev-ps

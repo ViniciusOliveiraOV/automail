@@ -1,21 +1,57 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Classificador de Emails</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
-</head>
-<body>
-    <div class="container">
-        <h1>Classificador de Emails</h1>
-        <form action="{{ url_for('main.classify') }}" method="post" enctype="multipart/form-data">
-            <label for="emailInput">Insira o texto do email ou faça upload de um arquivo:</label>
-            <textarea id="emailInput" name="email_text" rows="10" cols="50" placeholder="Cole o texto do email aqui..."></textarea>
-            <input type="file" name="email_file" accept=".txt, .pdf">
-            <button type="submit">Classificar Email</button>
-        </form>
-        <a href="{{ url_for('main.index') }}">Home</a>
-    </div>
-</body>
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width,initial-scale=1" />
+        <title>Classificador de Emails</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <script>
+            tailwind.config = {
+                theme: {
+                    extend: {
+                        colors: {
+                            brand: {
+                                50: '#f3fbf6',
+                                100: '#e6f7ee',
+                                300: '#85caa0',
+                                500: '#0f9d58',
+                                700: '#0b7a45'
+                            }
+                        },
+                        fontFamily: { sans: ['Inter', 'ui-sans-serif', 'system-ui'] }
+                    }
+                }
+            }
+        </script>
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    </head>
+    <body class="antialiased bg-brand-50 text-slate-900">
+        <div class="max-w-3xl mx-auto px-6 py-16">
+            <header class="mb-8">
+                <h1 class="text-3xl font-extrabold text-slate-800">Classificador de Emails</h1>
+                <p class="mt-2 text-sm text-slate-600">Cole um email ou faça upload (TXT/PDF) para classificação rápida.</p>
+            </header>
+
+            <main>
+                <form action="{{ url_for('main.classify') }}" method="post" enctype="multipart/form-data" class="space-y-6 bg-white border border-slate-100 shadow-sm rounded-lg p-6" role="form" aria-label="Formulário de classificação de email">
+                    <div>
+                        <label for="emailInput" class="block text-sm font-semibold text-slate-700">Texto do email</label>
+                        <textarea id="emailInput" name="email_text" rows="10" placeholder="Cole o texto do email aqui..." class="mt-2 w-full rounded-md border border-slate-200 p-3 text-sm bg-white text-slate-900" aria-describedby="instructions"></textarea>
+                        <p id="instructions" class="mt-2 text-xs text-slate-500">Aceita TXT e PDF — URLs e botões são tratados como acionáveis.</p>
+                    </div>
+
+                    <div class="flex items-center gap-4">
+                        <label class="flex items-center gap-3 cursor-pointer text-sm">
+                            <input type="file" name="email_file" accept=".txt, .pdf" class="sr-only" aria-label="Upload de arquivo" />
+                            <span class="inline-flex items-center px-4 py-2 rounded-md bg-slate-900 text-white border border-slate-900 text-sm hover:bg-black focus:outline-none focus:ring-2 focus:ring-brand-300">Escolher arquivo</span>
+                        </label>
+
+                        <button type="submit" class="btn-primary">Classificar Email</button>
+
+                        <a href="{{ url_for('main.index') }}" class="ml-auto text-sm text-slate-500 hover:underline">Limpar</a>
+                    </div>
+                </form>
+            </main>
+        </div>
+    </body>
 </html>
