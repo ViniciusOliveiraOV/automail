@@ -1,8 +1,10 @@
 from bs4 import BeautifulSoup
+from flask.testing import FlaskClient
+from werkzeug.test import TestResponse
 
 
-def test_classify_post_text(client):
-    resp = client.post('/classify', data={'text': 'Por favor, confirme a reunião amanhã.'})
+def test_classify_post_text(client: FlaskClient):
+    resp: TestResponse = client.post('/classify', data={'text': 'Por favor, confirme a reunião amanhã.'})
     assert resp.status_code == 200
     html = resp.data.decode('utf-8')
     soup = BeautifulSoup(html, 'html.parser')

@@ -1,10 +1,9 @@
-from typing import List, Union, Any, Tuple, Dict, Set
+from typing import List, Union, Tuple, Dict, Set, Optional, cast
 import os
 import re
 import logging
 import unicodedata
-from typing import Set
-import html as _html  # novo import para escapar texto em HTML
+import html as _html
 
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.naive_bayes import MultinomialNB
@@ -13,33 +12,8 @@ import numpy as np
 from scipy.sparse import spmatrix  # type: ignore
 
 MODEL_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "email_classifier_model.pkl"))
-
-# consolidated, language-agnostic keyword sets (EN + PT)
-# (Removed duplicate definition of _COMBINED_PRODUCTIVE_KEYWORDS and _COMBINED_UNPRODUCTIVE_KEYWORDS)
-
 logger = logging.getLogger(__name__)
 last_decision_reason: str = ""
-
-# Removed duplicate definition of get_last_decision_reason
-
-# (Removed duplicate definition of EmailClassifier)
-
-# (Removed duplicate definition of _normalize_for_matching)
-
-# (Removed duplicate definition of _contains_any_keyword)
-
-# (Removed duplicate definition of _keyword_fallback)
-
-# (Removed duplicate definition of _looks_spammy)
-
-# (Removed duplicate definition of _looks_garbled)
-
-
-# add modular scoring rule sets / weights
-# --- added: simple date/time patterns used by co-occurrence checks ---
-# _DATE_PATTERNS and _DATE_RE already defined above; duplicate definition removed.
-
-# consolidated, language-agnostic keyword sets (EN + PT)
 _COMBINED_PRODUCTIVE_KEYWORDS: Set[str] = {
     # English
     "please", "update", "status", "issue", "support", "attach", "attached", "ticket",
@@ -80,30 +54,35 @@ class EmailClassifier:
         self.is_trained = False
 
     def train(self, emails: List[str], labels: List[str]) -> None:
-        email_vectors: Union[np.ndarray, spmatrix] = self.vectorizer.fit_transform(emails)
+        # fit the vectorizer to the training emails and transform to vectors
+        email_vectors: Union[np.ndarray, spmatrix] = self.vectorizer.fit_transform(emails) # type: ignore
         self.classifier.fit(email_vectors, labels)
         self.is_trained = True
 
     def classify(self, email: str) -> str:
         if not getattr(self, "is_trained", False):
             raise RuntimeError("Classifier is not trained yet.")
-        email_vector: spmatrix = self.vectorizer.transform([email])
+        docs: List[str] = [str(email)]
+        email_vector: spmatrix = self.vectorizer.transform(docs) # type: ignore
         prediction = self.classifier.predict(email_vector)
         return str(prediction[0])
 
     def save_model(self, model_path: str = MODEL_PATH) -> None:
         os.makedirs(os.path.dirname(model_path) or ".", exist_ok=True)
-        joblib.dump((self.vectorizer, self.classifier), model_path)
+        # joblib.dump's return type can be partially unknown to type checkers;
+        # cast the result to a concrete Optional[List[str]] (its documented return)
+        # and ignore the value, since we only need the side-effect of writing the file.
+        _res = cast(Optional[List[str]], joblib.dump((self.vectorizer, self.classifier), model_path)) # type: ignore
 
     def load_model(self, model_path: str = MODEL_PATH) -> None:
         if not os.path.exists(model_path):
             raise FileNotFoundError(f"Model file not found: {model_path}")
-        loaded = joblib.load(model_path)
-        if isinstance(loaded, (tuple, list)) and len(loaded) >= 2:
+        loaded = joblib.load(model_path) # type: ignore
+        if isinstance(loaded, (tuple, list)) and len(loaded) >= 2: # type: ignore
             self.vectorizer, self.classifier = loaded[0], loaded[1]
         elif isinstance(loaded, dict):
-            self.vectorizer = loaded.get("vectorizer", self.vectorizer)
-            self.classifier = loaded.get("classifier", self.classifier)
+            self.vectorizer = loaded.get("vectorizer", self.vectorizer) # type: ignore
+            self.classifier = loaded.get("classifier", self.classifier) # type: ignore
         else:
             raise RuntimeError("Unknown model format in file.")
         self.is_trained = True
@@ -120,7 +99,6 @@ def _normalize_for_matching(s: str) -> str:
     s = re.sub(r"\s+", " ", s).strip()
     return s
 
-# (Removed unused function _contains_any_keyword)
 
 def _keyword_fallback(text: str) -> str:
     t_norm = _normalize_for_matching(text or "")
@@ -513,10 +491,12 @@ def classify_text_with_confidence(text: str, ml_threshold: float = 0.45) -> Tupl
         last_decision_reason = "empty_or_whitespace"
         return "Improdutivo", 0.0, False
 
-    # hard filters
+    # hard filters (spam/garbled or feed-like without actionable elements)
     try:
-        if _looks_spammy(text) or _looks_garbled(text):
-            last_decision_reason = "hard_filter_spam_or_garbled"
+        # treat clearly spammy/garbled text as improdutivo; also treat feed-like dumps
+        # as improdutivo unless they contain actionable elements (links/buttons/etc).
+        if _looks_spammy(text) or _looks_garbled(text) or (_looks_like_feed(text) and not _contains_actionable_elements(text)):
+            last_decision_reason = "hard_filter_spam_or_garbled_or_feed"
             return "Improdutivo", 1.0, False
     except Exception:
         logger.exception("error in hard filters; proceeding to scoring")
@@ -563,29 +543,28 @@ def classify_text(text: str) -> str:
     if not text or not text.strip():
         last_decision_reason = "empty_or_whitespace"
         logger.info("classification: Improdutivo (%s)", last_decision_reason)
-        return "Improdutivo"
-
-    # Hard filters
+    # Hard filters (spam/garbled or feed-like without actionable elements)
     try:
-        if _looks_spammy(text) or _looks_garbled(text):
-            last_decision_reason = "hard_filter_spam_or_garbled"
+        # treat clearly spammy/garbled text as improdutivo; also treat feed-like dumps
+        # as improdutivo unless they contain actionable elements (links/buttons/etc).
+        if _looks_spammy(text) or _looks_garbled(text) or (_looks_like_feed(text) and not _contains_actionable_elements(text)):
+            last_decision_reason = "hard_filter_spam_or_garbled_or_feed"
             logger.info("classification: Improdutivo (%s)", last_decision_reason)
             return "Improdutivo"
     except Exception:
+        # on error, proceed to scoring/fallback
+        logger.exception("error in hard filters; proceeding to scoring")
         # on error, proceed to scoring/fallback
         logger.exception("error in hard filters; proceeding to scoring")
 
     # Scoring engine (preferred)
     try:
         prod_score, imp_score, details = _score_text(text)  # type: ignore
-        decision: str
-        reason: str
-        result: Any = _apply_overrides(prod_score, imp_score, details, text)
-        decision: str
-        reason: str
-        if isinstance(result, tuple) and len(result) == 2:
-            decision, reason = result
-        else:
+        result = _apply_overrides(prod_score, imp_score, details, text)
+        try:
+            decision, reason = result  # type: ignore[assignment]
+        except (TypeError, ValueError):
+            # fallback if result is not a 2-tuple
             decision, reason = "Improdutivo", "override_error"
         last_decision_reason = reason
         logger.info("scoring details: prod=%d imp=%d details=%s", prod_score, imp_score, details)

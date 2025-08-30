@@ -29,3 +29,5 @@ Notes
 - The tests expect the dev server to be reachable at http://127.0.0.1:5000.
 - If your Flask app runs under a different port or host, change `baseUrl` in `cypress.config.js`.
 - The test file `cypress/e2e/classify_spec.cy.js` performs a simple POST via the UI and checks for the `.score-panel` fragment.
+
+Note: the tests assume the dev server is reachable locally at http://127.0.0.1:5000; use your preferred tunneling tool if remote access is required.

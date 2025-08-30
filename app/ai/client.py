@@ -3,11 +3,11 @@ import requests
 import os
 import concurrent.futures
 import functools
-import threading
-import time
+import builtins
+from typing import Any, cast
 from app.config import BaseConfig
 
-load_dotenv()  # Carrega variáveis do .env
+load_dotenv() 
 
 class AIClient:
     from typing import Optional
@@ -30,7 +30,7 @@ class AIClient:
         }
 
         # Grok payload (used as fallback)
-        grok_payload = {
+        grok_payload: dict[str, object] = {
             "model": "grok-4-latest",
             "messages": [
                 {"role": "system", "content": "Você é um assistente que classifica emails como 'Produtivo' ou 'Improdutivo'. Responda apenas com uma das duas palavras."},
@@ -55,14 +55,15 @@ class AIClient:
         # Simple LRU cache for HF inference
         @functools.lru_cache(maxsize=256)
         def _hf_inference_cached(prompt: str, model_name: str, api_base: str, token: str, timeout: float) -> str:
-            url = f"{api_base}/{model_name}"
             hf_headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
             # Special-case zero-shot models like facebook/bart-large-mnli which expect
             # `inputs` to be a string and `parameters` to include `candidate_labels`.
             if "bart-large-mnli" in model_name:
-                payload = {"inputs": prompt, "parameters": {"candidate_labels": ["Produtivo", "Improdutivo"]}}
+                payload: dict[str, Any] = {"inputs": prompt, "parameters": {"candidate_labels": ["Produtivo", "Improdutivo"]}}
             else:
+                payload: dict[str, Any] = {"inputs": prompt, "options": {"wait_for_model": True}}
                 payload = {"inputs": prompt, "options": {"wait_for_model": True}}
+            url = f"{api_base.rstrip('/')}/{model_name}"
             r = requests.post(url, headers=hf_headers, json=payload, timeout=timeout)
             # Verbose debug print
             if os.environ.get("AI_DBG", "0") == "1":
@@ -72,19 +73,57 @@ class AIClient:
                     short = "<no body>"
                 print(f"[AI_DBG] HF POST {url} -> status={r.status_code} body={short}")
             r.raise_for_status()
-            body = r.json()
+            body: Any = r.json()
             # If zero-shot classification output (labels + scores)
             if isinstance(body, dict) and "labels" in body:
-                labels = body.get("labels", [])
+                # Treat the JSON body as a typed dict for safe .get() usage
+                body_dict = cast(dict[str, Any], body)
+                # Be explicit about the expected type: coerce/validate into a list[str]
+                raw_labels: Any = body_dict.get("labels", [])
+                labels: list[str] = []
+                # Normalize and validate labels to be a list of strings
+                if isinstance(raw_labels, list):
+                    for item in cast(list[Any], raw_labels):
+                        if isinstance(item, str):
+                            labels.append(item)
+                        else:
+                            # Coerce non-string items to string to keep a predictable type
+                            try:
+                                # Use builtins.str() to coerce items into a string (explicit for type checkers)
+                                labels.append(builtins.str(cast(object, item)))
+                            except Exception:
+                                # Skip items that cannot be represented
+                                continue
+                elif isinstance(raw_labels, str):
+                    # single-label string provided
+                    labels.append(raw_labels)
+                # otherwise ignore unexpected types
                 if labels:
-                    # Return top label
-                    return labels[0]
+                    top = labels[0]
+                    # top is guaranteed to be a string here
+                    return top
             # Common generation formats
-            if isinstance(body, list) and len(body) > 0:
-                return body[0].get("generated_text") or body[0].get("text") or str(body[0])
+            if isinstance(body, list) and body:
+                first: Any = cast(list[Any], body)[0]
+                # Only call .get on actual dict objects to satisfy type checkers
+                if isinstance(first, dict):
+                    # Cast to a typed dict so .get has a known signature for the type checker
+                    first_dict = cast(dict[str, Any], first)
+                    gen = first_dict.get("generated_text") or first_dict.get("text")
+                    if gen is not None:
+                        return builtins.str(gen)
+                    return builtins.str(cast(object, first))
+                # Non-dict items: stringify
+                return builtins.str(cast(object, first))
             if isinstance(body, dict) and "generated_text" in body:
-                return body.get("generated_text")
-            return str(body)
+                # Prefer generated_text or text fields, coerce to str and avoid returning None
+                body_dict = cast(dict[str, Any], body)
+                gen = body_dict.get("generated_text") or body_dict.get("text")
+                if gen is not None:
+                    return builtins.str(gen)
+                # Fallback to stringifying the whole body to satisfy the declared return type
+                return builtins.str(body_dict)
+            return builtins.str(cast(object, body))
 
         def _dbg_wrap(text: str, source: str, raw: str | None = None) -> str:
             """Return text optionally annotated when AI_DBG=1."""
@@ -103,6 +142,9 @@ class AIClient:
             # Allow config-driven candidate list (comma-separated)
             cfg_candidates = os.environ.get("HF_MODEL_CANDIDATES") or BaseConfig.HF_MODEL_CANDIDATES
             hf_candidates = [c.strip() for c in cfg_candidates.split(",") if c.strip()]
+            # Ensure the explicit HF_MODEL (hf_model) is used first when provided to avoid it being ignored
+            if hf_model and hf_model not in hf_candidates:
+                hf_candidates.insert(0, hf_model)
             if hf_async:
                 # Non-blocking mode: return Unknown immediately and allow cached result to populate
                 return "Unknown"
@@ -176,7 +218,7 @@ class AIClient:
         if hf_token:
             hf_headers = {"Authorization": f"Bearer {hf_token}", "Content-Type": "application/json"}
             prompt = f"Categoria: {category}\nEmail: {original_text}\nGere uma resposta breve e adequada."
-            hf_payload = {"inputs": prompt, "options": {"wait_for_model": True}}
+            hf_payload: dict[str, Any] = {"inputs": prompt, "options": {"wait_for_model": True}}
             candidates = [hf_model, "facebook/bart-large-mnli", "bigscience/bloom", "gpt2"]
             last_exception = None
             for model_try in candidates:
@@ -197,18 +239,23 @@ class AIClient:
                     r.raise_for_status()
                     body = r.json()
                     # HF may return list or dict — try common fields
-                    if isinstance(body, list) and len(body) > 0:
-                        text = body[0].get("generated_text") or body[0].get("text") or str(body[0])
-                    elif isinstance(body, dict) and "generated_text" in body:
-                        text = body.get("generated_text")
+                    # Use truthiness check for lists to avoid calling len() on list[Unknown]
+                    if isinstance(body, list) and body:
+                        first_item = cast(dict[str, Any], body[0])
+                        text = first_item.get("generated_text") or first_item.get("text") or builtins.str(first_item)
+                    elif isinstance(body, dict) and ("generated_text" in body or "text" in body):
+                        # Cast to a typed dict so .get() has a known signature for the type checker,
+                        # then coerce the found value to str (safely handling None).
+                        body_dict = cast(dict[str, Any], body)
+                        gen = body_dict.get("generated_text") or body_dict.get("text")
+                        text = builtins.str(gen) if gen is not None else builtins.str(body_dict)
                     else:
-                        text = str(body)
+                        text = builtins.str(cast(object, body))
                     return (text or "").strip()
                 except Exception as e:
                     last_exception = e
                     if os.environ.get("AI_DBG", "0") == "1":
                         print(f"[AI_DBG] HF attempt {model_try} failed: {e}")
-                    # continue to next candidate
                     continue
             # All HF attempts failed — log and fall back to canned reply
             if os.environ.get("AI_DBG", "0") == "1":
@@ -219,7 +266,6 @@ class AIClient:
 
         # Next: try Grok if API key present
         if not self.api_key:
-            # No Grok key either — return canned reply
             if category == "Produtivo":
                 return "Obrigado pelo contato. Recebi sua mensagem e vou analisar/acionar o responsável. Retorno em breve com uma atualização."
             return "Agradeço a mensagem. Registro-a e, caso seja necessário, entrarei em contato. Desejo um ótimo dia."
@@ -255,7 +301,7 @@ class AIClient:
                 print(f"[AI_DBG] Grok POST {self.api_url} -> status={resp.status_code} body={short}")
             try:
                 resp.raise_for_status()
-            except requests.HTTPError as he:
+            except requests.HTTPError:
                 body_text = "<no body>"
                 try:
                     body_text = resp.text
@@ -272,12 +318,10 @@ class AIClient:
         except Exception as e:
             return f"Erro ao gerar via Grok: {e}"
 
-# Função de módulo para integração com outros arquivos
 def generate_response(category: str, original_text: str) -> str:
     ai = AIClient()
     return ai.generate_response({}, {}, category=category, original_text=original_text)
 
-# Teste rápido
 if __name__ == "__main__":
     resposta = generate_response("Produtivo", "Preciso de suporte urgente.")
     print(resposta)

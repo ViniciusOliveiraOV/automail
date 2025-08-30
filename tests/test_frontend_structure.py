@@ -1,7 +1,8 @@
 from bs4 import BeautifulSoup
+from flask.testing import FlaskClient
 
 
-def test_frontend_structure_has_score_panel(client):
+def test_frontend_structure_has_score_panel(client: FlaskClient):
     resp = client.post('/classify', data={'text': 'Por favor, envie o anexo.'})
     # accept 200 or 400 (some envs may respond 400 for missing deps); still validate HTML structure when present
     html = resp.get_data(as_text=True)
