@@ -238,6 +238,22 @@ O sistema combina um classificador baseado em regras (heurísticas) com um fallb
   ## Recent changes
 
   - Removed temporary debug endpoints and flags not suitable for production.
+  
+  ### This release (unreleased / cleanup/remove-debug-endpoint)
+
+  - Security & production readiness
+    - Removed `/_debug_llm_config` endpoint and other temporary debug helpers.
+    - Sanitization for classifier HTML now preserves the `class` attribute on a small set of tags so CSS rules (e.g. `.score-count`) remain after cleaning.
+
+  - Frontend & styling
+    - Fixed heading colors and restored score color feedback (green for Produtivo, red for Improdutivo).
+    - Added local Tailwind build pipeline and `styles.css` overrides; ensure you run `npm run build:css` when changing Tailwind inputs.
+
+  - Tests & CI
+    - Updated Cypress E2E spec to handle both legacy and current textarea field names and added headless run support in CI.
+    - Unit tests and E2E pass locally; CI workflow includes accessibility checks.
+
+  If you rely on any debug endpoints, run the app locally and use environment inspection or a debugging session instead of exposing them in production.
   - Improved HTML sanitization to preserve classifier CSS classes so the UI shows positive/negative feedback colors.
   - Fixed heading/score colors and made the score fragment stylable via `app/static/css/styles.css`.
   - Added a local Tailwind build pipeline and E2E test improvements (Cypress).
