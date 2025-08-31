@@ -117,6 +117,29 @@ O sistema combina um classificador baseado em regras (heurísticas) com um fallb
 
   Ao abrir `http://127.0.0.1:5000` cole/mande o texto do e‑mail ou anexe um PDF/TXT e envie o formulário.
 
+
+## Como rodar com LLM habilitado (desenvolvimento local)
+
+1. Garanta que seu arquivo `.env` contenha pelo menos as entradas abaixo:
+
+```
+HF_API_TOKEN=hf_seu_token_aqui
+ENABLE_LLM=1
+ALLOW_UI_LLM_TOGGLE=1
+```
+
+2. Inicie o servidor de desenvolvimento (a aplicação já carrega `.env` automaticamente):
+
+PowerShell:
+```powershell
+$env:FLASK_APP='app.main'; flask run --host=127.0.0.1 --port=5000
+```
+
+Ou use o script de conveniência que carrega `.env` e executa o Flask:
+```powershell
+.\scripts\start_with_env.ps1
+```
+
   ## Testes
 
   Testes unitários / integração (pytest)
@@ -240,11 +263,6 @@ O sistema combina um classificador baseado em regras (heurísticas) com um fallb
   - `HF_API_TOKEN` / `OPENAI_API_KEY` - tokens para chamadas de LLM
   - `AI_DBG` - ativa logs adicionais para LLM/AI
 
-  ## Contribuição e desenvolvimento
-
-  - Tests: escreva pytest para lógica de classificação e pequenos testes de integração para `routes.py`.
-  - CI: existe uma workflow que executa pytest e (opcionalmente) Cypress; ver `.github/workflows/ci.yml`.
-
   ## Como auditar uma decisão
   - Cada resposta da API `/classify` inclui `decision`, `confidence` e `details` (lista/objeto com scores por heurística, features relevantes e, se usado, resposta bruta do ML/LLM).
   - Use esses campos para depurar falsos positivos/negativos e ajustar listas de keywords e limiares.
@@ -256,70 +274,4 @@ O sistema combina um classificador baseado em regras (heurísticas) com um fallb
 
   Projeto licenciado sob MIT. (Adicione `LICENSE` se desejar.)
 
-  ## Alterações recentes
 
-  - Removidos endpoints de debug temporários e flags que não são adequados para produção.
-
-  ### Esta versão (unreleased / cleanup/remove-debug-endpoint)
-
-  Segurança e preparação para produção
-
-  - Removido o endpoint `/_debug_llm_config` e outras ferramentas de debug temporárias.
-  - A sanitização do HTML do classificador agora preserva o atributo `class` em um conjunto reduzido de tags, permitindo que regras de CSS (por exemplo `.score-count`) permaneçam após a limpeza.
-
-  Frontend e estilo
-
-  - Corrigidos os tons de cores e restaurado o feedback de cor do score (verde para Produtivo, vermelho para Improdutivo).
-  - Adicionado pipeline local de build do Tailwind e sobrescritas em `styles.css`; execute `npm run build:css` quando alterar os arquivos do Tailwind.
-
-  Testes e CI
-
-  - Atualizado o spec do Cypress (E2E) para lidar com nomes de campos antigos e atuais e adicionado suporte a execução headless no CI.
-  - Testes unitários e E2E passam localmente; recomenda‑se incluir verificações de acessibilidade no workflow de CI.
-
-  Se você depende de endpoints de debug, execute o app localmente e inspecione o ambiente ou depure em sessão local em vez de expor esses endpoints em produção.
-
-  - Melhorada a sanitização do HTML para preservar classes do classificador e garantir que as cores de feedback positivo/negativo sejam exibidas.
-  - Corrigidos heading/cores do score e tornado o fragmento do score estilável via `app/static/css/styles.css`.
-  - Adicionado pipeline local do Tailwind e melhorias nos testes E2E (Cypress).
-  - Criado `CHANGELOG.md` com um resumo das mudanças não lançadas.
-
-## Como rodar com LLM habilitado (desenvolvimento local)
-
-1. Garanta que seu arquivo `.env` contenha pelo menos as entradas abaixo:
-
-```
-HF_API_TOKEN=hf_seu_token_aqui
-ENABLE_LLM=1
-ALLOW_UI_LLM_TOGGLE=1
-```
-
-2. Inicie o servidor de desenvolvimento (a aplicação já carrega `.env` automaticamente):
-
-PowerShell:
-```powershell
-$env:FLASK_APP='app.main'; flask run --host=127.0.0.1 --port=5000
-```
-
-Ou use o script de conveniência que carrega `.env` e executa o Flask:
-```powershell
-.\scripts\start_with_env.ps1
-```
-
-3. Submeta um e‑mail na interface; na página de resultado clique em "Perguntar ao assistente" quando o botão estiver disponível.
-
-## Checklist rápido para produção
-
-- Remova ou rotacione qualquer token que tenha sido acidentalmente exposto. Guarde segredos em um cofre de segredos/CI.
-- Construa os ativos estáticos (Tailwind) e incorpore-os na imagem ou distribuição CDN:
-
-  ```powershell
-  npm ci && npm run build:css
-  ```
-
-- Use `docker build` e `docker run --env-file .env` ou implemente em uma plataforma de contêiner.
-- Configure um servidor WSGI de produção (por exemplo Gunicorn) e verificação de health checks — há exemplos no `Procfile`/`Dockerfile`.
-- Certifique-se de que as variáveis de ambiente para acesso ao LLM (`HF_API_TOKEN`) estejam definidas em produção e não expostas em logs.
-- Execute os smoke tests após o deploy: `pytest -q` e, quando possível, uma execução rápida de E2E (Cypress headless).
-
-Se desejar, posso adicionar um pequeno documento `deploy/` com exemplos de uso de `docker-compose.prod.yml` e um workflow do GitHub Actions para builds automatizados.
