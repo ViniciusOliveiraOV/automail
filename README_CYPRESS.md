@@ -1,33 +1,33 @@
-Cypress E2E tests
+Testes Cypress (E2E)
 
-Setup
+Pré‑requisitos
 
-1. Install node (>=16) and npm.
-2. From the project root run:
+1. Instale o Node (>=16) e o npm.
+2. A partir da raiz do projeto execute:
 
    npm install
 
-Run the app
+Executar a aplicação
 
-1. Start the Flask app in a separate terminal:
+1. Inicie a aplicação Flask em um terminal separado:
 
-   # Windows PowerShell
+   # PowerShell (Windows)
    $env:FLASK_APP = 'app'; flask run --host 127.0.0.1 --port 5000
 
-Run Cypress
+Executar o Cypress
 
-Open interactive runner:
+Abrir o runner interativo:
 
    npm run cypress:open
 
-Run headless:
+Executar em modo headless:
 
    npm run cypress:run
 
-Notes
+Observações
 
-- The tests expect the dev server to be reachable at http://127.0.0.1:5000.
-- If your Flask app runs under a different port or host, change `baseUrl` in `cypress.config.js`.
-- The test file `cypress/e2e/classify_spec.cy.js` performs a simple POST via the UI and checks for the `.score-panel` fragment.
+- Os testes esperam que o servidor de desenvolvimento esteja acessível em http://127.0.0.1:5000.
+- Se sua aplicação Flask estiver em outra porta/host, altere `baseUrl` em `cypress.config.js`.
+- O arquivo de teste `cypress/e2e/classify_spec.cy.js` faz um POST simples pela UI e verifica a presença do fragmento `.score-panel`.
 
-Note: the tests assume the dev server is reachable locally at http://127.0.0.1:5000; use your preferred tunneling tool if remote access is required.
+Caso seja necessário expor o servidor para acesso remoto, use sua ferramenta de tunelamento preferida.

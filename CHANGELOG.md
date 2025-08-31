@@ -1,27 +1,17 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
-
-## [Unreleased]
-- Remove temporary debug endpoints (/_debug_llm_config) for production readiness.
-- Preserve classifier HTML classes during sanitization to allow styling of score fragments.
-- Fix heading and score color styles; make the score fragment stylable and readable.
-- Add local Tailwind build pipeline and project CSS overrides.
-- Update Cypress spec to tolerate multiple textarea field names and run E2E headless in CI.
-- Misc: small bugfixes and test improvements (unit tests + e2e passing locally).
-
-## Previous
-- Initial project baseline and earlier releases are documented in commit history.
-# Changelog
-
-All notable changes to this project are documented in this file.
+Todas as mudanças notáveis deste projeto são documentadas neste arquivo.
 
 ## Unreleased
-- Remove temporary debug endpoint `/_debug_llm_config` for production readiness.
-- Preserve classifier HTML classes when sanitizing to allow CSS feedback (green/red) to apply.
-- Fix heading and score colors; include explicit `.score-good` / `.score-bad` CSS rules.
-- Make `/classify` GET render the index form and stabilize route registration.
-- Add local Tailwind build files and integrate `npm run build:css`.
-- Add Cypress E2E spec improvements and CI wiring for unit and e2e tests.
-- Minor tests added and adjusted (`test_score_html_safety`, `test_llm_endpoint`, etc.).
+
+- Removido endpoint de debug temporário `/_debug_llm_config` para adequação à produção.
+- Preservadas as classes HTML do classificador durante a sanitização para permitir estilização dos fragmentos de score.
+- Corrigidos estilos de heading e score; o fragmento do score agora é estilável e legível.
+- Adicionado pipeline local de build do Tailwind e sobrescritas de CSS do projeto.
+- Atualizado o spec do Cypress para tolerar múltiplos nomes de textarea e executar E2E em modo headless no CI.
+- Diversos: pequenos bugs corrigidos e melhorias em testes (unitários + e2e passam localmente).
+
+## Histórico anterior
+
+- O baseline inicial do projeto e releases anteriores estão documentados no histórico de commits.
 

@@ -15,25 +15,26 @@ class AIClient:
     from typing import Optional
 
     def __init__(self, api_url: str = "https://api.x.ai/v1/chat/completions", api_key: Optional[str] = None) -> None:
-        # legacy fields kept for compatibility, but the client now prefers HF
+        # Campos legados mantidos por compatibilidade; o cliente agora prefere Hugging Face (HF)
         self.api_url = api_url or os.environ.get("GROK_API_URL", "https://api.x.ai/v1/chat/completions")
         self.api_key = api_key or os.environ.get("GROK_API_KEY")
-        # Hugging Face configuration (preferred provider)
+        # Configuração do Hugging Face (provedor preferido)
         self.hf_token = os.environ.get("HF_API_TOKEN")
         self.hf_model = os.environ.get("HF_MODEL", "google/flan-t5-large")
         self.hf_api_base = os.environ.get("HF_API_URL", "https://api-inference.huggingface.co/models")
 
     def classify_email(self, email_content: str) -> str:
-        """Classify an email as 'Produtivo' or 'Improdutivo'.
+        """Classifica um e‑mail como 'Produtivo' ou 'Improdutivo'.
 
-        Strategy:
-        - Try Hugging Face Inference API first (cached + threadpool).
-        - If HF times out or is unavailable, fall back to Grok (if configured).
-        - Always return a short string label or 'Unknown'.
+        Estratégia:
+        - Tenta a API de inferência do Hugging Face primeiro (com cache + threadpool).
+        - Se o HF expirar ou não estiver disponível, faz fallback para o classificador local.
+        - Sempre retorna uma etiqueta curta ou 'Unknown' quando não for possível decidir.
         """
-    # Note: simplified to use only Hugging Face (HF) for classification.
-    # If HF token is not present or the request fails we return 'Unknown'.
-
+        # Caso especial: modelos zero-shot (ex.: facebook/bart-large-mnli) que
+        # esperam `inputs` como string e `parameters` contendo `candidate_labels`.
+        # Para modelos zero-shot / MNLI prefere-se um dict de inputs com chave `text`
+        # (a API de inferência do HF aceita tanto uma string quanto um dict como {"text": "..."}).
         # HF config
         hf_token = os.environ.get("HF_API_TOKEN")
         hf_model = os.environ.get("HF_MODEL", "google/flan-t5-large")
@@ -49,15 +50,14 @@ class AIClient:
         @functools.lru_cache(maxsize=256)
         def _hf_inference_cached(prompt: str, model_name: str, api_base: str, token: str, timeout: float) -> str:
             hf_headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-            # Special-case zero-shot models like facebook/bart-large-mnli which expect
-            # `inputs` to be a string and `parameters` to include `candidate_labels`.
-            # For zero-shot / MNLI models prefer an inputs dict with a `text` key
-            # (the HF inference API accepts either a string or a dict like {"text": "..."}).
+            # Caso especial: modelos zero-shot (ex.: facebook/bart-large-mnli) que
+            # esperam `inputs` como string e `parameters` contendo `candidate_labels`.
+            # Para modelos zero-shot / MNLI prefere-se um dict de inputs com chave `text`.
             if "bart-large-mnli" in model_name or "mnli" in model_name:
                 payload: dict[str, Any] = {"inputs": {"text": prompt}, "parameters": {"candidate_labels": ["Produtivo", "Improdutivo"]}}
             else:
                 payload: dict[str, Any] = {"inputs": prompt, "options": {"wait_for_model": True}}
-                payload = {"inputs": prompt, "options": {"wait_for_model": True}}
+
             url = f"{api_base.rstrip('/')}/{model_name}"
             if os.environ.get("AI_DBG", "0") == "1":
                 try:
@@ -65,14 +65,16 @@ class AIClient:
                 except Exception:
                     pretty = str(payload)
                 print(f"[AI_DBG] HF SEND {url} payload={pretty}")
+
             r = requests.post(url, headers=hf_headers, json=payload, timeout=timeout)
-            # Verbose debug print
+
             if os.environ.get("AI_DBG", "0") == "1":
                 try:
                     short = r.text if os.environ.get("AI_DBG_RAW", "0") == "1" else r.text[:400]
                 except Exception:
                     short = "<no body>"
                 print(f"[AI_DBG] HF POST {url} -> status={r.status_code} body={short}")
+
             r.raise_for_status()
             body: Any = r.json()
             # If zero-shot classification output (labels + scores)

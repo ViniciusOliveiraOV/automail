@@ -9,8 +9,9 @@ except Exception:
     _BLEACH_AVAILABLE = False
 from app.nlp.preprocess import preprocess_text
 from app.nlp.classifier import classify_text_html, classify_email, get_last_decision_reason, classify_text_with_confidence
-# try to import the real AI client function, but provide a typed fallback so static analysis
-# and runtime errors are avoided if the symbol isn't present.
+# Tenta importar a função real do cliente de AI; fornece um fallback tipado
+# para que a análise estática e erros em tempo de execução sejam evitados
+# caso o símbolo não esteja presente.
 try:
     from app.ai.client import generate_response
 except Exception:
@@ -37,8 +38,8 @@ def index():
 
 @bp.route("/classify-llm", methods=["POST"])
 def classify_llm():
-    """Endpoint to invoke LLM on-demand for a single classification instance.
-    Respects server-side ENABLE_LLM and ALLOW_UI_LLM_TOGGLE config flags.
+    """Endpoint para invocar o LLM sob demanda para uma única instância de classificação.
+    Respeita as flags de configuração do servidor `ENABLE_LLM` e `ALLOW_UI_LLM_TOGGLE`.
     """
     if not (bool(current_app.config.get("ENABLE_LLM")) and bool(current_app.config.get("ALLOW_UI_LLM_TOGGLE", False))):
         return jsonify({"error": "LLM not enabled"}), 403
@@ -68,8 +69,9 @@ def classify_llm():
 
 @bp.route("/classify-llm-stream", methods=["POST"])
 def classify_llm_stream():
-    """Stream an LLM reply in chunks. For local/dev this will mock streaming by
-    generating a reply (via generate_response) and yielding small chunks with delays.
+    """Transmite a resposta do LLM em pedaços (streaming).
+    Para desenvolvimento/local, simula streaming gerando a resposta via
+    `generate_response` e emitindo pequenos trechos com pequenos atrasos.
     """
     if not (bool(current_app.config.get("ENABLE_LLM")) and bool(current_app.config.get("ALLOW_UI_LLM_TOGGLE", False))):
         return jsonify({"error": "LLM not enabled"}), 403
@@ -309,7 +311,8 @@ def classify():
 def _health():
     return jsonify({'status': 'ok'})
 
-# create alias endpoints so templates using main.index / main.classify resolve correctly
+# Cria aliases para endpoints para que templates que usam main.index / main.classify
+# resolvam corretamente
 try:
     # if using a Blueprint named `main`
     bp.add_url_rule("/", endpoint="index", view_func=index)
@@ -325,6 +328,7 @@ except Exception:
         pass
 
 
-# Note: debug endpoints such as '/_debug_llm_config' were removed for
-# production readiness. If you need to inspect runtime LLM config, run the
-# application locally and use environment inspection or a debugging session.
+# Observação: endpoints de debug como '/_debug_llm_config' foram removidos para
+# adequação à produção. Se você precisar inspecionar a configuração em tempo de
+# execução do LLM, execute a aplicação localmente e use inspeção do ambiente ou
+# uma sessão de depuração.

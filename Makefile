@@ -9,17 +9,9 @@ PROD_FLAGS := -f docker-compose.yml -f docker-compose.prod.yml
 # to set Process-level environment variables; on Unix-like shells we source
 # the file with 'set -o allexport'. This keeps 'make up' behavior identical
 # across platforms.
-ifeq ($(OS),Windows_NT)
-UP_ENV_CMD = powershell -NoProfile -Command "if (Test-Path '.env') { Get-Content '.env' | ForEach-Object { if ($_ -match '^\s*([^#\s][A-Za-z0-9_]+)\s*=\s*(.*)$$') { $k=$matches[1]; $v=$matches[2].Trim(); if ($v -match '^(\"|\')(.*)\\1$$') { $v=$matches[2] }; [System.Environment]::SetEnvironmentVariable($k,$v,'Process') } } };"
-else
-# On Unix-like systems docker-compose will automatically load .env from
-# the compose project directory. Avoid attempting to "source" the file
-# (some environments may treat it as missing or as a directory and the
-# '.' builtin can fail). Use a no-op here so the Make targets remain
-# cross-platform but safe. If explicit exporting is required on a host
-# it can be done manually before running `make`.
+# Use docker-compose's --env-file option which is cross-platform and
+# avoids running brittle inline shell/PowerShell commands from make.
 UP_ENV_CMD = true
-endif
 
 .PHONY: phony help up up-detach build down logs ps health \
         dev-build dev-down dev-logs dev-ps dev-health \
@@ -58,15 +50,13 @@ help:
 # --- Dev (default) ---
 up:
 	@echo ">>> docker-compose $(DEV_FLAGS) up --build"
-	@echo "Loading .env into environment..."
-	@$(UP_ENV_CMD)
-	$(COMPOSE) $(DEV_FLAGS) up --build
+	@echo "Using .env via --env-file .env"
+	$(COMPOSE) --env-file .env $(DEV_FLAGS) up --build
 
 up-detach:
 	@echo ">>> docker-compose $(DEV_FLAGS) up --build -d"
-	@echo "Loading .env into environment..."
-	@$(UP_ENV_CMD)
-	$(COMPOSE) $(DEV_FLAGS) up --build -d
+	@echo "Using .env via --env-file .env"
+	$(COMPOSE) --env-file .env $(DEV_FLAGS) up --build -d
 
 dev-build:
 	@echo ">>> docker-compose $(DEV_FLAGS) build --no-cache"
@@ -84,9 +74,21 @@ dev-ps:
 	@echo ">>> docker-compose $(DEV_FLAGS) ps"
 	$(COMPOSE) $(DEV_FLAGS) ps
 
+
+ifeq ($(OS),Windows_NT)
+dev-health:
+	@echo "Checking backend health at http://localhost:5000 ... (Windows)"
+	@powershell -NoProfile -ExecutionPolicy Bypass -Command "& '.\\scripts\\dev-health.ps1'"
+else
 dev-health:
 	@echo "Checking backend health at http://localhost:5000 ..."
 	@sh -c 'i=0; until [ $$i -ge 15 ]; do if curl -sSf http://localhost:5000 >/dev/null 2>&1; then echo "backend OK"; exit 0; fi; i=$$((i+1)); sleep 1; done; echo "backend UNHEALTHY"; exit 1'
+endif
+
+# Windows-friendly health check target using PowerShell script
+dev-health-windows:
+	@echo "Checking backend health at http://localhost:5000 ... (Windows)"
+	@powershell -NoProfile -ExecutionPolicy Bypass -Command "& '.\\scripts\\dev-health.ps1'"
 
 # convenience aliases to match original names
 # NOTE: make build now performs the development image build (so a newcomer
@@ -95,7 +97,11 @@ build: dev-build
 down: dev-down
 logs: dev-logs
 ps: dev-ps
+ifeq ($(OS),Windows_NT)
+health: dev-health-windows
+else
 health: dev-health
+endif
 
 # --- Prod ---
 prod-build:

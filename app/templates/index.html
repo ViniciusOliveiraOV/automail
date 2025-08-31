@@ -23,12 +23,17 @@
                         <label for="emailInput" class="block text-sm font-semibold text-slate-700">Texto do email</label>
                         <textarea id="emailInput" name="email_text" rows="10" placeholder="Cole o texto do email aqui..." class="mt-2 w-full rounded-md border border-slate-200 p-3 text-sm bg-white text-slate-900" aria-describedby="instructions"></textarea>
                         <p id="instructions" class="mt-2 text-xs text-slate-500">Aceita TXT e PDF — URLs e botões são tratados como acionáveis.</p>
+                        <div id="dropHint" class="drop-hint"><svg class="hint-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M19 9v10a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12 3v12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M8 7l4-4 4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>Arraste um arquivo .txt aqui ou clique em "Escolher arquivo". PDFs serão enviados ao servidor para extração.</div>
                     </div>
 
                     <div class="flex items-center gap-4">
                         <label class="flex items-center gap-3 cursor-pointer text-sm">
-                            <input type="file" name="email_file" accept=".txt, .pdf" class="sr-only" aria-label="Upload de arquivo" />
+                            <input id="emailFileInput" type="file" name="email_file" accept=".txt, .pdf" class="sr-only" aria-label="Upload de arquivo" />
                             <span class="inline-flex items-center px-4 py-2 rounded-md bg-slate-900 text-white border border-slate-900 text-sm hover:bg-black focus:outline-none focus:ring-2 focus:ring-brand-300">Escolher arquivo</span>
+                            <div id="filePill" class="file-pill" style="display:none;">
+                                <span id="filePillName"></span>
+                                <button id="filePillRemove" type="button" aria-label="Remover arquivo">✕</button>
+                            </div>
                         </label>
 
                         <button type="submit" class="btn-primary">Classificar Email</button>
@@ -40,4 +45,104 @@
             </main>
         </div>
     </body>
+    <script>
+        (function(){
+            const fileInput = document.getElementById('emailFileInput');
+            const textarea = document.getElementById('emailInput');
+            if (!fileInput || !textarea) return;
+
+            function setFileInputFile(f){
+                // Try to populate the hidden file input so form submission includes the file.
+                try{
+                    const dt = new DataTransfer();
+                    dt.items.add(f);
+                    fileInput.files = dt.files;
+                    // update UI pill
+                    try{
+                        const pill = document.getElementById('filePill');
+                        const pillName = document.getElementById('filePillName');
+                        if (pill && pillName){
+                            pillName.textContent = f.name || '(anexo)';
+                            pill.style.display = '';
+                        }
+                    }catch(e){}
+                }catch(e){
+                    // ignore if DataTransfer not available in this environment
+                }
+            }
+
+            function readTextFile(file){
+                if (!file) return;
+                // if PDF, populate the file input and leave extraction to server
+                if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')){
+                    setFileInputFile(file);
+                    return;
+                }
+                const reader = new FileReader();
+                reader.onload = function(e){
+                    const text = e.target.result || '';
+                    // replace textarea content with file content
+                    textarea.value = text;
+                    // also set the hidden file input so the server receives the file on submit
+                    setFileInputFile(file);
+                };
+                reader.onerror = function(){
+                    // ignore and leave behavior to form upload
+                };
+                reader.readAsText(file, 'utf-8');
+            }
+
+            fileInput.addEventListener('change', (ev) => {
+                const f = ev.target.files && ev.target.files[0];
+                // if user picked a file via the dialog just read it (and fileInput already has it)
+                readTextFile(f);
+            });
+
+            // file pill removal
+            const pillRemove = document.getElementById('filePillRemove');
+            if (pillRemove){
+                pillRemove.addEventListener('click', (ev)=>{
+                    ev.preventDefault();
+                    // clear file input
+                    try{ fileInput.value = ''; fileInput.files = new DataTransfer().files;}catch(e){}
+                    // hide pill
+                    const pill = document.getElementById('filePill'); if (pill) pill.style.display = 'none';
+                    const pillName = document.getElementById('filePillName'); if (pillName) pillName.textContent = '';
+                    // clear textarea if it was populated from file
+                    // (we don't try to detect origin; user can paste again if needed)
+                    // textarea.value = '';
+                });
+            }
+
+            // drag and drop onto textarea (with visual state)
+            const dropHint = document.getElementById('dropHint');
+            textarea.addEventListener('dragenter', (ev) => { ev.preventDefault(); textarea.classList.add('drag-active'); if (dropHint) dropHint.style.display = 'none'; });
+            textarea.addEventListener('dragover', (ev) => { ev.preventDefault(); ev.dataTransfer.dropEffect = 'copy'; });
+            textarea.addEventListener('dragleave', (ev) => { ev.preventDefault(); textarea.classList.remove('drag-active'); if (dropHint) dropHint.style.display = ''; });
+            textarea.addEventListener('drop', (ev) => {
+                ev.preventDefault();
+                textarea.classList.remove('drag-active');
+                if (dropHint) dropHint.style.display = '';
+                const f = ev.dataTransfer.files && ev.dataTransfer.files[0];
+                readTextFile(f);
+            });
+
+            // paste: if clipboard contains a file, read it
+            textarea.addEventListener('paste', (ev) => {
+                const items = ev.clipboardData && ev.clipboardData.items;
+                if (!items) return;
+                for (let i = 0; i < items.length; i++){
+                    const it = items[i];
+                    if (it.kind === 'file'){
+                        const f = it.getAsFile();
+                        if (f) {
+                            ev.preventDefault();
+                            readTextFile(f);
+                            return;
+                        }
+                    }
+                }
+            });
+        })();
+    </script>
 </html>

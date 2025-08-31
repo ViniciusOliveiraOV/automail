@@ -10,6 +10,34 @@ html, body {
   background: inherit;
 }
 
+/* Tiled background rendered as a subtle blurred overlay. We use a
+   ::before pseudo-element so we can apply blur and opacity while keeping
+   page content crisp above it. Increase tile size so fewer tiles are
+   visible, and reduce opacity to avoid clutter. */
+body {
+  background-color: #f8fafc; /* base gap color between tiles */
+  position: relative;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image: url('/static/images/tiled_bg_email.png');
+  background-repeat: repeat;
+  /* larger width with automatic height preserves aspect ratio and
+    makes tiles appear less flattened */
+  background-size: 420px auto;
+  background-position: center;
+  opacity: 0.18; /* subtle */
+  filter: blur(6px) saturate(0.8);
+}
+
+/* Ensure main content stacks above the background overlay */
+#main { position: relative; z-index: 2; padding: 4rem 1.5rem; }
+
 /* Headings should be dark by default so they're readable on white panels */
 h1, h2, h3, h4 {
   color: #0f172a;
@@ -104,6 +132,9 @@ label input[type="file"].sr-only + span:hover {
   border: 1px solid rgba(15,23,42,0.06) !important;
 }
 
+/* Small margin around panels so the tiled background shows between them */
+.panel { margin: 0.5rem; }
+
 /* Ensure typographic content inside panels is dark for contrast */
 .panel .prose, .panel p, .panel pre, .panel code, .panel dd {
   color: #0f172a !important;
@@ -130,3 +161,57 @@ label input[type="file"].sr-only + span:hover {
 
 .score-list { margin-top: 0.5rem; padding-left: 1rem; }
 .score-details { color: #0f172a; font-size: 0.95rem; }
+
+/* Drag-and-drop helpers */
+.drop-hint {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  color: #6b7280; /* slate-500 */
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.drag-active {
+  outline: 2px dashed rgba(99,102,241,0.6);
+  outline-offset: 6px;
+  background-color: rgba(99,102,241,0.03);
+}
+
+/* Small animated icon next to the drop hint */
+.drop-hint .hint-icon {
+  width: 18px;
+  height: 18px;
+  display: inline-block;
+  flex: 0 0 18px;
+  fill: #4f46e5; /* indigo-600 */
+  transform-origin: center;
+  animation: hint-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes hint-pulse {
+  0% { transform: translateY(0) scale(1); opacity: 0.95 }
+  40% { transform: translateY(-3px) scale(1.05); opacity: 1 }
+  100% { transform: translateY(0) scale(1); opacity: 0.95 }
+}
+
+/* filename pill shown when a file is attached */
+.file-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: 0.5rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 9999px;
+  background: #eef2ff; /* indigo-50 */
+  color: #3730a3; /* indigo-700 */
+  font-size: 0.85rem;
+  border: 1px solid #e0e7ff;
+}
+.file-pill button {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: #6b7280;
+  cursor: pointer;
+}
+.file-pill button:focus{ outline: 2px solid rgba(99,102,241,0.3); border-radius: 9999px }

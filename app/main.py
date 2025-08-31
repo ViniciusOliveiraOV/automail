@@ -1,7 +1,13 @@
 import os
 import logging
+from dotenv import load_dotenv
+
+# Load environment variables from .env automatically so `flask run`
+# picks them up without requiring the user to export them manually.
+load_dotenv()
 from typing import cast, MutableMapping, Any
 from flask import Flask
+from flask import send_from_directory
 from app.routes import main as routes
 from app.config import DevelopmentConfig, ProductionConfig, TestingConfig
 
@@ -39,6 +45,8 @@ def create_app():
 
     # Register blueprints
     app.register_blueprint(routes)
+
+    # Static assets (like tiled background) are served from app/static in production.
     return app
 
 if __name__ == "__main__":

@@ -119,29 +119,29 @@ O sistema combina um classificador baseado em regras (heurísticas) com um fallb
 
   ## Testes
 
-  Unit / integration (pytest)
+  Testes unitários / integração (pytest)
 
   ```powershell
   pytest -q
   ```
 
-  Cypress (E2E)
+  Cypress (E2E) — Testes end‑to‑end (E2E)
 
-  1. Instale dependências Node (na raiz `email-classifier-app`):
+  1. Instale as dependências Node (na raiz `email-classifier-app`):
 
   ```powershell
   npm install
   ```
 
-  2. Rodar a aplicação localmente (ver passo anterior) e então:
+  2. Execute a aplicação localmente (ver passo anterior) e então:
 
-  Abrir runner interativo:
+  Abra o runner interativo:
 
   ```powershell
   npm run cypress:open
   ```
 
-  Executar headless:
+  Executar em modo headless:
 
   ```powershell
   npm run cypress:run
@@ -149,7 +149,7 @@ O sistema combina um classificador baseado em regras (heurísticas) com um fallb
 
   Observações:
   - Os testes E2E pressupõem que o app esteja em `http://127.0.0.1:5000` (veja `cypress.config.js` para alterar `baseUrl`).
-  - Use sua ferramenta de tunelamento preferida se precisar expor o servidor a terceiros (não há dependência embutida a ngrok).
+  - Use sua ferramenta de tunelamento preferida se precisar expor o servidor a terceiros (não há dependência embutida como o ngrok).
 
   ## Algoritmos e design (o que está acontecendo)
 
@@ -207,9 +207,30 @@ O sistema combina um classificador baseado em regras (heurísticas) com um fallb
   docker run -p 5000:5000 --env-file .env automail:latest
   ```
 
+  Nota rápida - atalhos via Makefile:
+
+  O repositório inclui um `Makefile` com atalhos convenientes para desenvolvimento. Na raiz do projeto você pode usar:
+
+  ```powershell
+  make build   # constrói a imagem de desenvolvimento (equivalente ao build do docker-compose)
+  make up      # sobe os serviços de desenvolvimento via docker-compose
+  ```
+
+  Esses comandos servem como atalho para os passos descritos acima e simplificam o fluxo de desenvolvimento local.
+
   Notas Docker:
   - Monte volumes para persistência ou logs se quiser inspecionar arquivos gerados.
   - Configure variáveis de ambiente (ex.: `LOAD_MODEL`, `ENABLE_OCR`, `HF_API_TOKEN`) via `--env-file` ou no `docker-compose`.
+
+  Nota para usuários Windows:
+
+  O `Makefile` inclui um alvo `dev-health` que usa `sh`/`curl` para checar a saúde local. Em sistemas Windows onde `sh` pode não estar disponível, existe um script PowerShell alternativo em `scripts/dev-health.ps1` que replica o comportamento. Execute:
+
+  ```powershell
+  .\scripts\dev-health.ps1
+  ```
+
+  Ele tentará até 15 vezes verificar `http://localhost:5000` e retornará 0 em sucesso ou 1 em falha.
 
   ## Variáveis importantes (.env)
   - `SECRET_KEY` - Flask secret
@@ -235,26 +256,70 @@ O sistema combina um classificador baseado em regras (heurísticas) com um fallb
 
   Projeto licenciado sob MIT. (Adicione `LICENSE` se desejar.)
 
-  ## Recent changes
+  ## Alterações recentes
 
-  - Removed temporary debug endpoints and flags not suitable for production.
-  
-  ### This release (unreleased / cleanup/remove-debug-endpoint)
+  - Removidos endpoints de debug temporários e flags que não são adequados para produção.
 
-  - Security & production readiness
-    - Removed `/_debug_llm_config` endpoint and other temporary debug helpers.
-    - Sanitization for classifier HTML now preserves the `class` attribute on a small set of tags so CSS rules (e.g. `.score-count`) remain after cleaning.
+  ### Esta versão (unreleased / cleanup/remove-debug-endpoint)
 
-  - Frontend & styling
-    - Fixed heading colors and restored score color feedback (green for Produtivo, red for Improdutivo).
-    - Added local Tailwind build pipeline and `styles.css` overrides; ensure you run `npm run build:css` when changing Tailwind inputs.
+  Segurança e preparação para produção
 
-  - Tests & CI
-    - Updated Cypress E2E spec to handle both legacy and current textarea field names and added headless run support in CI.
-    - Unit tests and E2E pass locally; CI workflow includes accessibility checks.
+  - Removido o endpoint `/_debug_llm_config` e outras ferramentas de debug temporárias.
+  - A sanitização do HTML do classificador agora preserva o atributo `class` em um conjunto reduzido de tags, permitindo que regras de CSS (por exemplo `.score-count`) permaneçam após a limpeza.
 
-  If you rely on any debug endpoints, run the app locally and use environment inspection or a debugging session instead of exposing them in production.
-  - Improved HTML sanitization to preserve classifier CSS classes so the UI shows positive/negative feedback colors.
-  - Fixed heading/score colors and made the score fragment stylable via `app/static/css/styles.css`.
-  - Added a local Tailwind build pipeline and E2E test improvements (Cypress).
-  - Created CHANGELOG.md with a summary of current unreleased changes.
+  Frontend e estilo
+
+  - Corrigidos os tons de cores e restaurado o feedback de cor do score (verde para Produtivo, vermelho para Improdutivo).
+  - Adicionado pipeline local de build do Tailwind e sobrescritas em `styles.css`; execute `npm run build:css` quando alterar os arquivos do Tailwind.
+
+  Testes e CI
+
+  - Atualizado o spec do Cypress (E2E) para lidar com nomes de campos antigos e atuais e adicionado suporte a execução headless no CI.
+  - Testes unitários e E2E passam localmente; recomenda‑se incluir verificações de acessibilidade no workflow de CI.
+
+  Se você depende de endpoints de debug, execute o app localmente e inspecione o ambiente ou depure em sessão local em vez de expor esses endpoints em produção.
+
+  - Melhorada a sanitização do HTML para preservar classes do classificador e garantir que as cores de feedback positivo/negativo sejam exibidas.
+  - Corrigidos heading/cores do score e tornado o fragmento do score estilável via `app/static/css/styles.css`.
+  - Adicionado pipeline local do Tailwind e melhorias nos testes E2E (Cypress).
+  - Criado `CHANGELOG.md` com um resumo das mudanças não lançadas.
+
+## Como rodar com LLM habilitado (desenvolvimento local)
+
+1. Garanta que seu arquivo `.env` contenha pelo menos as entradas abaixo:
+
+```
+HF_API_TOKEN=hf_seu_token_aqui
+ENABLE_LLM=1
+ALLOW_UI_LLM_TOGGLE=1
+```
+
+2. Inicie o servidor de desenvolvimento (a aplicação já carrega `.env` automaticamente):
+
+PowerShell:
+```powershell
+$env:FLASK_APP='app.main'; flask run --host=127.0.0.1 --port=5000
+```
+
+Ou use o script de conveniência que carrega `.env` e executa o Flask:
+```powershell
+.\scripts\start_with_env.ps1
+```
+
+3. Submeta um e‑mail na interface; na página de resultado clique em "Perguntar ao assistente" quando o botão estiver disponível.
+
+## Checklist rápido para produção
+
+- Remova ou rotacione qualquer token que tenha sido acidentalmente exposto. Guarde segredos em um cofre de segredos/CI.
+- Construa os ativos estáticos (Tailwind) e incorpore-os na imagem ou distribuição CDN:
+
+  ```powershell
+  npm ci && npm run build:css
+  ```
+
+- Use `docker build` e `docker run --env-file .env` ou implemente em uma plataforma de contêiner.
+- Configure um servidor WSGI de produção (por exemplo Gunicorn) e verificação de health checks — há exemplos no `Procfile`/`Dockerfile`.
+- Certifique-se de que as variáveis de ambiente para acesso ao LLM (`HF_API_TOKEN`) estejam definidas em produção e não expostas em logs.
+- Execute os smoke tests após o deploy: `pytest -q` e, quando possível, uma execução rápida de E2E (Cypress headless).
+
+Se desejar, posso adicionar um pequeno documento `deploy/` com exemplos de uso de `docker-compose.prod.yml` e um workflow do GitHub Actions para builds automatizados.
