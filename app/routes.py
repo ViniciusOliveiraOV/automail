@@ -325,35 +325,6 @@ except Exception:
         pass
 
 
-@bp.route('/_debug_llm_config', methods=['GET'])
-def _debug_llm_config():
-    """Temporary debug endpoint: returns LLM-related config so you can
-    confirm what the running app sees. Does NOT return secret tokens.
-    Remove this endpoint after debugging.
-    """
-    try:
-        enable_llm = bool(current_app.config.get('ENABLE_LLM'))
-        allow_ui = bool(current_app.config.get('ALLOW_UI_LLM_TOGGLE', False))
-        threshold = float(current_app.config.get('LLM_PROMPT_CONF_THRESHOLD', 0.6))
-    except Exception:
-        enable_llm = False
-        allow_ui = False
-        threshold = 0.6
-
-    # indicate whether an HF token appears present (do not disclose its value)
-    hf_present = bool(os.environ.get('HF_API_TOKEN'))
-
-    # also include the raw environment variables so we can detect cases where
-    # the shell environment differs from the loaded app config (helps debug)
-    env_enable = os.environ.get('ENABLE_LLM')
-    env_allow_ui = os.environ.get('ALLOW_UI_LLM_TOGGLE')
-
-    return jsonify({
-        'ENABLE_LLM': enable_llm,
-        'ALLOW_UI_LLM_TOGGLE': allow_ui,
-        'LLM_PROMPT_CONF_THRESHOLD': threshold,
-        'HF_API_TOKEN_present': hf_present,
-        'llm_allowed': (enable_llm and allow_ui),
-        'ENV_ENABLE_LLM': env_enable,
-        'ENV_ALLOW_UI_LLM_TOGGLE': env_allow_ui,
-    })
+# Note: debug endpoints such as '/_debug_llm_config' were removed for
+# production readiness. If you need to inspect runtime LLM config, run the
+# application locally and use environment inspection or a debugging session.
