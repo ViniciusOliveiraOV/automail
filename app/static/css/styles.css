@@ -1,14 +1,18 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
 
+/* Keep only typography defaults here. Do NOT force a global dark background.
+   The layout and color system is provided by Tailwind; this file contains
+   targeted overrides only (panels, buttons, score badges). */
 html, body {
   height: 100%;
-  background-color: #2f3030; /* fundo suave */
   font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
-  color: #ffffff; /* texto sempre visível */
+  color: inherit;
+  background: inherit;
 }
 
-h1, h2, h3 {
-  color: #ffffff;
+/* Headings should be dark by default so they're readable on white panels */
+h1, h2, h3, h4 {
+  color: #0f172a;
   font-weight: 700;
 }
 
@@ -107,5 +111,22 @@ label input[type="file"].sr-only + span:hover {
 
 /* Slight tweak for the small score boxes rendered by classifier */
 .score-panel .score-card { background: linear-gradient(180deg, #ffffff, #f8fafc); border-radius: 0.5rem; padding: 0.75rem; }
-.score-panel .score-count { color: #059669; font-weight:700; font-size:1.25rem }
-.score-panel .score-card:nth-child(2) .score-count { color: #ef4444 }
+.score-panel .score-card:first-child .score-count { color: #059669 !important; font-weight:700; font-size:1.25rem }
+.score-panel .score-card:nth-child(2) .score-count { color: #ef4444 !important; font-weight:700; font-size:1.25rem }
+
+/* Explicit positive/negative label styles used by the renderer */
+.score-good { color: #059669 !important; font-weight:700; }
+.score-bad { color: #ef4444 !important; font-weight:700; }
+
+/* Ensure the rendered HTML fragment is dark and readable when injected into pages */
+.score-render, .score-panel, #score-panel {
+  color: #0f172a !important;
+}
+
+.score-render h4 {
+  color: #0f172a !important;
+  margin: 0 0 0.25rem 0;
+}
+
+.score-list { margin-top: 0.5rem; padding-left: 1rem; }
+.score-details { color: #0f172a; font-size: 0.95rem; }

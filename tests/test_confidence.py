@@ -9,9 +9,9 @@ def _fake_score_text(t: str) -> Tuple[float, float, Dict[str, Any]]:
 def _fake_looks_spammy(t: str) -> bool:
     return False
 
-def fake_ml(t: str) -> Tuple[str, float]:
-    # return a label and a confidence consistent with test expectations
-    return ("Improdutivo", 0.8)
+def fake_ml(t: str) -> str:
+    # return a label string consistent with classifier expectation
+    return "Improdutivo"
 
 
 def test_high_confidence_heuristic():

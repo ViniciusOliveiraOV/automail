@@ -47,3 +47,43 @@ jobs:
           browser: chrome
         env:
           FLASK_APP: app
+  accessibility:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install frontend deps
+        run: |
+          cd email-classifier-app
+          npm ci
+          npm run build:css
+
+      - name: Start Flask app
+        run: |
+          cd email-classifier-app
+          python -m venv .venv
+          . .venv/bin/activate
+          pip install -r requirements.txt
+          export FLASK_APP=app.main:create_app
+          export ENABLE_LLM=0
+          flask run --host 127.0.0.1 --port 5000 &
+          sleep 5
+
+      - name: Run Lighthouse accessibility check
+        uses: treosh/lighthouse-ci-action@v8
+        with:
+          urls: 'http://127.0.0.1:5000'
+          uploadArtifacts: false
+          config: |
+            extends: "lighthouse:default"
+            settings:
+              onlyCategories: ["accessibility"]
+          thresholds: |
+            accessibility: 0.9

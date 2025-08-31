@@ -15,7 +15,6 @@ def app() -> Generator[Flask, None, None]:
     app = create_app()
     app.config["TESTING"] = True
     yield app
-    yield app
 
 @pytest.fixture
 def client(app: Flask) -> FlaskClient:

@@ -4,6 +4,17 @@ COMPOSE := docker-compose
 DEV_FLAGS := -f docker-compose.yml -f docker-compose.dev.yml
 PROD_FLAGS := -f docker-compose.yml -f docker-compose.prod.yml
 
+# Cross-platform helper: load key=value pairs from .env into the process
+# environment before invoking docker-compose. On Windows we use PowerShell
+# to set Process-level environment variables; on Unix-like shells we source
+# the file with 'set -o allexport'. This keeps 'make up' behavior identical
+# across platforms.
+ifeq ($(OS),Windows_NT)
+UP_ENV_CMD = powershell -NoProfile -Command "if (Test-Path '.env') { Get-Content '.env' | ForEach-Object { if ($_ -match '^\s*([^#\s][A-Za-z0-9_]+)\s*=\s*(.*)$$') { $k=$matches[1]; $v=$matches[2].Trim(); if ($v -match '^(\"|\')(.*)\\1$$') { $v=$matches[2] }; [System.Environment]::SetEnvironmentVariable($k,$v,'Process') } } };"
+else
+UP_ENV_CMD = sh -c 'if [ -f .env ]; then set -o allexport; . .env; set +o allexport; fi;'
+endif
+
 .PHONY: phony help up up-detach build down logs ps health \
         dev-build dev-down dev-logs dev-ps dev-health \
         prod-build prod-up prod-up-detach prod-down prod-logs prod-ps prod-health
@@ -41,10 +52,14 @@ help:
 # --- Dev (default) ---
 up:
 	@echo ">>> docker-compose $(DEV_FLAGS) up --build"
+	@echo "Loading .env into environment..."
+	@$(UP_ENV_CMD)
 	$(COMPOSE) $(DEV_FLAGS) up --build
 
 up-detach:
 	@echo ">>> docker-compose $(DEV_FLAGS) up --build -d"
+	@echo "Loading .env into environment..."
+	@$(UP_ENV_CMD)
 	$(COMPOSE) $(DEV_FLAGS) up --build -d
 
 dev-build:

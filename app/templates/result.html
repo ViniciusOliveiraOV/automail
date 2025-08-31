@@ -4,15 +4,16 @@
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>Resultado - Classificador de Emails</title>
-        <script src="https://cdn.tailwindcss.com"></script>
-        <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="/static/css/tailwind.css">
+    <link rel="stylesheet" href="/static/css/styles.css">
     </head>
     <body class="bg-slate-50 min-h-screen text-slate-800">
-        <main class="max-w-5xl mx-auto p-6">
+        <a class="sr-only focus:not-sr-only" href="#main">Pular para o conteúdo</a>
+        <main id="main" class="max-w-5xl mx-auto p-6">
             <a href="/" class="inline-block text-sm mb-4 text-slate-600 hover:underline">← Voltar</a>
 
             <header class="mb-6">
-                <h1 class="text-2xl font-semibold" style="color:black">Resultado da Classificação</h1>
+                <h1 class="text-2xl font-semibold">Resultado da Classificação</h1>
                 <p class="text-sm text-slate-500">Decisão: <strong>{{ decision }}</strong></p>
             </header>
 
@@ -72,9 +73,71 @@
                         </details>
                         {% endif %}
 
+                        {% if llm_allowed %}
+                            <div class="mt-4">
+                            <div class="text-sm text-slate-600">Ambíguo — quer perguntar ao assistente?</div>
+                            <div class="mt-2 flex items-center gap-3">
+                                <button id="ask-llm" class="btn-secondary">Perguntar ao assistente</button>
+                                <div id="llm-status" class="text-sm text-slate-500"></div>
+                            </div>
+                            <div id="llm-reply" role="region" aria-live="polite" aria-atomic="false" class="mt-4 prose text-sm bg-slate-50 p-3 rounded hidden"></div>
+                        </div>
+                        {% endif %}
+
                     </div>
                 </div>
             </section>
         </main>
     </body>
+    <script>
+        (() => {
+            const btn = document.getElementById('ask-llm');
+            if (!btn) return;
+            const status = document.getElementById('llm-status');
+            const replyBox = document.getElementById('llm-reply');
+            btn.addEventListener('click', async (e) => {
+                e.preventDefault();
+                status.textContent = 'Conectando ao assistente...';
+                btn.disabled = true;
+                replyBox.classList.remove('hidden');
+                replyBox.innerHTML = '<strong>Assistente:</strong><div class="mt-2" id="llm-stream"></div>';
+                const streamDiv = document.getElementById('llm-stream');
+                try {
+                    const textNode = document.querySelector('.prose') || document.querySelector('pre');
+                    const text = textNode ? textNode.innerText || textNode.textContent : '';
+                    const resp = await fetch('/classify-llm-stream', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ text })
+                    });
+                    if (!resp.ok) {
+                        const j = await resp.json().catch(() => ({}));
+                        status.textContent = j.error || ('Erro: ' + resp.statusText);
+                        btn.disabled = false;
+                        return;
+                    }
+
+                    status.textContent = 'Assistente escrevendo...';
+                    // stream reader
+                    const reader = resp.body.getReader();
+                    const decoder = new TextDecoder();
+                    let done = false;
+                    while (!done) {
+                        const { value, done: streamDone } = await reader.read();
+                        done = streamDone;
+                        if (value) {
+                            const chunk = decoder.decode(value, { stream: true });
+                            streamDiv.innerHTML += chunk.replace(/\n/g, '<br>');
+                        }
+                    }
+                    status.textContent = '';
+                } catch (err) {
+                    status.textContent = 'Erro ao contatar assistente.';
+                    console.error(err);
+                } finally {
+                    btn.disabled = false;
+                }
+            });
+        })();
+    </script>
 </html>

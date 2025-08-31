@@ -4,7 +4,8 @@ describe('Classify page', () => {
   });
 
   it('submits text and shows score panel', () => {
-    cy.get('textarea[name="text"]').clear().type('This is a short productive email about a meeting and action items.');
+  // support either legacy name="text" or current name="email_text"
+  cy.get('textarea[name="text"], textarea[name="email_text"]').first().clear().type('This is a short productive email about a meeting and action items.');
     cy.get('button[type="submit"]').click();
 
     cy.url().should('include', '/classify');

@@ -15,6 +15,18 @@ def create_app():
         app.config.from_object(TestingConfig)
     else:
         app.config.from_object(DevelopmentConfig)
+    # Ensure LLM-related flags reflect the current process environment at
+    # startup. The config classes read os.environ at import time which can
+    # be stale if the environment changes before create_app is called by
+    # the Flask CLI. Overwrite here so setting $env:ENABLE_LLM = '1' just
+    # before `flask run` takes effect.
+    app.config['ENABLE_LLM'] = os.environ.get('ENABLE_LLM', '0') == '1'
+    app.config['ALLOW_UI_LLM_TOGGLE'] = os.environ.get('ALLOW_UI_LLM_TOGGLE', '0') == '1'
+    try:
+        app.config['LLM_PROMPT_CONF_THRESHOLD'] = float(os.environ.get('LLM_PROMPT_CONF_THRESHOLD', app.config.get('LLM_PROMPT_CONF_THRESHOLD', 0.6)))
+    except Exception:
+        # keep existing value if conversion fails
+        pass
     # logging
     # determine log level name from config (ensure it's a str for type checkers)
     # cast app.config to a typed mapping so .get overload resolves

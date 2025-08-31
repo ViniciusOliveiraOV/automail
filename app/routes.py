@@ -1,5 +1,12 @@
+import os
 from typing import Dict, Any, cast, Tuple, Union, List
+import logging
 from flask import Blueprint, render_template, request, Response, jsonify, current_app
+try:
+    import bleach
+    _BLEACH_AVAILABLE = True
+except Exception:
+    _BLEACH_AVAILABLE = False
 from app.nlp.preprocess import preprocess_text
 from app.nlp.classifier import classify_text_html, classify_email, get_last_decision_reason, classify_text_with_confidence
 # try to import the real AI client function, but provide a typed fallback so static analysis
@@ -14,14 +21,85 @@ except Exception:
 from io import BytesIO
 import html as _html
 import re
+import time
+from flask import stream_with_context, Response
 
 bp = Blueprint("main", __name__)
 # alias expected by app.main
 main = bp
 
+logger = logging.getLogger(__name__)
+
 @bp.route("/", methods=["GET"])
 def index():
     return render_template("index.html")
+
+
+@bp.route("/classify-llm", methods=["POST"])
+def classify_llm():
+    """Endpoint to invoke LLM on-demand for a single classification instance.
+    Respects server-side ENABLE_LLM and ALLOW_UI_LLM_TOGGLE config flags.
+    """
+    if not (bool(current_app.config.get("ENABLE_LLM")) and bool(current_app.config.get("ALLOW_UI_LLM_TOGGLE", False))):
+        return jsonify({"error": "LLM not enabled"}), 403
+
+    data = cast(Dict[str, Any], request.get_json(silent=True) or {})
+    text = data.get("text") or request.form.get("text") or ""
+    if not text:
+        return jsonify({"error": "no text provided"}), 400
+
+    # optionally redact or trim text before sending to LLM (keep minimal for privacy)
+    # here we send a short prefix + max 4096 characters to avoid huge payloads
+    snippet = text if len(text) <= 4096 else text[:4096]
+    try:
+        # compute a heuristics-backed decision to pass as category to LLM so it can
+        # produce a context-aware reply (Produtivo/Improdutivo)
+        try:
+            decision_label, _, _ = classify_text_with_confidence(text)
+        except Exception:
+            decision_label = classify_email(text)
+        llm_reply = generate_response(decision_label, snippet)
+    except Exception:
+        logger.exception("llm call failed")
+        return jsonify({"error": "llm call failed"}), 500
+
+    return jsonify({"llm_reply": llm_reply, "llm_used": True})
+
+
+@bp.route("/classify-llm-stream", methods=["POST"])
+def classify_llm_stream():
+    """Stream an LLM reply in chunks. For local/dev this will mock streaming by
+    generating a reply (via generate_response) and yielding small chunks with delays.
+    """
+    if not (bool(current_app.config.get("ENABLE_LLM")) and bool(current_app.config.get("ALLOW_UI_LLM_TOGGLE", False))):
+        return jsonify({"error": "LLM not enabled"}), 403
+
+    data = cast(Dict[str, Any], request.get_json(silent=True) or {})
+    text = data.get("text") or request.form.get("text") or ""
+    if not text:
+        return jsonify({"error": "no text provided"}), 400
+
+    # generate full reply (synchronously) then stream it in small chunks
+    try:
+        try:
+            decision_label, _, _ = classify_text_with_confidence(text)
+        except Exception:
+            decision_label = classify_email(text)
+        full_reply = generate_response(decision_label, text)
+    except Exception:
+        logger.exception("llm call failed")
+        return jsonify({"error": "llm call failed"}), 500
+
+    def generator():
+        # prefix with a simple JSON-like preface so the client can format
+        # We'll stream plain text chunks
+        words = (full_reply or "").split()
+        for w in words:
+            yield w + ' '
+            # brief delay to simulate streaming
+            time.sleep(0.03)
+
+    return Response(stream_with_context(generator()), mimetype='text/plain; charset=utf-8')
 def process_email_pipeline(raw_text: str) -> Dict[str, str]:
     text = preprocess_text(raw_text)
     label: str = classify_email(text)
@@ -105,6 +183,10 @@ def _extract_text_from_file(f: Any) -> Tuple[str, str]:
 
 @bp.route("/classify", methods=["GET", "POST"])
 def classify():
+    # If requested via GET, render the index page with the form
+    if request.method == "GET":
+        return render_template("index.html")
+
     if request.method == "POST":
         # accept multiple possible form field names (legacy and new)
         text = request.form.get("text") or request.form.get("email_text") or ""
@@ -132,22 +214,49 @@ def classify():
 
         # use HTML-aware classifier so we can render the score fragment in the template
         try:
-            # primary: get decision, HTML fragment and structured details
+            # primary: heuristic decision, HTML fragment and structured details (no ML/LLM override)
             decision, score_html, details = classify_text_html(text)
         except Exception:
             decision = classify_email(text)
             score_html = ""
             details = {}
 
-        # compute confidence and whether ML was used / human review needed
+        # sanitize classifier HTML fragment before marking safe in templates
+        if score_html and _BLEACH_AVAILABLE:
+            # Allow the structural tags and preserve class attributes so the
+            # classifier's markup (score-panel, score-card, score-count, etc.)
+            # remains intact and can be styled by our CSS. Be conservative and
+            # only allow the tags we generate.
+            ALLOWED_TAGS = ['div', 'span', 'strong', 'em', 'code', 'pre', 'p', 'ul', 'li', 'br', 'h4']
+            # Allow class on the tags so CSS selectors remain after cleaning.
+            ALLOWED_ATTRS = {
+                'div': ['class'],
+                'span': ['class'],
+                'h4': ['class'],
+                'ul': ['class'],
+                'li': ['class'],
+                'code': ['class']
+            }
+            try:
+                score_html = bleach.clean(score_html, tags=ALLOWED_TAGS, attributes=ALLOWED_ATTRS, strip=True)
+            except Exception:
+                # fallback: strip all tags
+                score_html = re.sub(r'<[^>]+>', '', score_html)
+
+        # compute confidence using the classifier helper but do NOT allow automatic ML fallback here
         try:
-            decision2, confidence, used_ml = classify_text_with_confidence(text)
+            # set ml_threshold=0.0 so classify_text_with_confidence computes confidence but will not call ML
+            _decision_tmp, confidence, _used_ml = classify_text_with_confidence(text, ml_threshold=0.0)
         except Exception:
-            # fallback: keep previous decision, low confidence
-            decision2, confidence, used_ml = decision, 0.2, False
-        # if ML produced a different label, prefer the ML-backed decision when confidence is higher
-        if used_ml and decision2 != decision:
-            decision = decision2
+            confidence = 0.2
+
+        # ambiguous if confidence below a configurable UI threshold
+        amb_threshold = float(current_app.config.get("LLM_PROMPT_CONF_THRESHOLD", 0.6))
+        ambiguous = (confidence is None) or (confidence < amb_threshold)
+
+        # whether server allows UI-triggered LLM (global server enable + explicit allow toggle)
+        llm_allowed = bool(current_app.config.get("ENABLE_LLM")) and bool(current_app.config.get("ALLOW_UI_LLM_TOGGLE", False))
+
         needs_review = (get_last_decision_reason() == "needs_human_review")
         debug = get_last_decision_reason()
 
@@ -183,6 +292,8 @@ def classify():
             debug=debug,
             confidence=confidence,
             needs_review=needs_review,
+            ambiguous=ambiguous,
+            llm_allowed=llm_allowed,
             # aliases to keep backward-compatible templates working
             resposta_sugerida=decision,
             result=decision,
@@ -193,8 +304,10 @@ def classify():
             file_debug=file_debug,
         )
 
-    # GET: render the index page which contains the form (classify.html was missing)
-    return render_template("index.html")
+
+@bp.route('/_health', methods=['GET'])
+def _health():
+    return jsonify({'status': 'ok'})
 
 # create alias endpoints so templates using main.index / main.classify resolve correctly
 try:
@@ -210,3 +323,37 @@ except Exception:
     except Exception:
         # ignore if already registered or if no application context is available
         pass
+
+
+@bp.route('/_debug_llm_config', methods=['GET'])
+def _debug_llm_config():
+    """Temporary debug endpoint: returns LLM-related config so you can
+    confirm what the running app sees. Does NOT return secret tokens.
+    Remove this endpoint after debugging.
+    """
+    try:
+        enable_llm = bool(current_app.config.get('ENABLE_LLM'))
+        allow_ui = bool(current_app.config.get('ALLOW_UI_LLM_TOGGLE', False))
+        threshold = float(current_app.config.get('LLM_PROMPT_CONF_THRESHOLD', 0.6))
+    except Exception:
+        enable_llm = False
+        allow_ui = False
+        threshold = 0.6
+
+    # indicate whether an HF token appears present (do not disclose its value)
+    hf_present = bool(os.environ.get('HF_API_TOKEN'))
+
+    # also include the raw environment variables so we can detect cases where
+    # the shell environment differs from the loaded app config (helps debug)
+    env_enable = os.environ.get('ENABLE_LLM')
+    env_allow_ui = os.environ.get('ALLOW_UI_LLM_TOGGLE')
+
+    return jsonify({
+        'ENABLE_LLM': enable_llm,
+        'ALLOW_UI_LLM_TOGGLE': allow_ui,
+        'LLM_PROMPT_CONF_THRESHOLD': threshold,
+        'HF_API_TOKEN_present': hf_present,
+        'llm_allowed': (enable_llm and allow_ui),
+        'ENV_ENABLE_LLM': env_enable,
+        'ENV_ALLOW_UI_LLM_TOGGLE': env_allow_ui,
+    })
