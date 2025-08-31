@@ -235,4 +235,10 @@ O sistema combina um classificador baseado em regras (heurísticas) com um fallb
 
   Projeto licenciado sob MIT. (Adicione `LICENSE` se desejar.)
 
-  ```
+  ## Recent changes
+
+  - Removed temporary debug endpoints and flags not suitable for production.
+  - Improved HTML sanitization to preserve classifier CSS classes so the UI shows positive/negative feedback colors.
+  - Fixed heading/score colors and made the score fragment stylable via `app/static/css/styles.css`.
+  - Added a local Tailwind build pipeline and E2E test improvements (Cypress).
+  - Created CHANGELOG.md with a summary of current unreleased changes.
