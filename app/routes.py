@@ -33,7 +33,14 @@ logger = logging.getLogger(__name__)
 
 @bp.route("/", methods=["GET"])
 def index():
-    return render_template("index.html")
+    # Provide a safe gmail start URL for the template so rendering does not
+    # fail if the optional gmail blueprint wasn't registered at runtime.
+    try:
+        from flask import url_for
+        gmail_start = url_for('gmail_auth.start_oauth')
+    except Exception:
+        gmail_start = '/gmail/start'
+    return render_template("index.html", gmail_start_url=gmail_start)
 
 
 @bp.route("/classify-llm", methods=["POST"])

@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Conectar Gmail</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tailwind.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+  </head>
+  <body class="bg-slate-50 min-h-screen text-slate-800">
+    <main class="max-w-3xl mx-auto p-6">
+      <a href="/" class="text-sm text-slate-600 hover:underline">← Voltar</a>
+      <div class="bg-white rounded-lg shadow-sm p-6 mt-4">
+        <h1 class="text-2xl font-semibold mb-2">Conectar Gmail</h1>
+        <p class="text-sm text-slate-600 mb-4">Clique abaixo para autorizar a aplicação a ler seus emails (somente leitura). O token será salvo localmente para desenvolvimento.</p>
+  <a href="{{ gmail_start_url or url_for('gmail_auth.start_oauth') if ("gmail_start_url" in globals()) else '/gmail/start' }}" class="inline-flex items-center px-4 py-3 bg-blue-600 text-white rounded-md">Conectar com Google</a>
+      </div>
+    </main>
+  </body>
+</html>

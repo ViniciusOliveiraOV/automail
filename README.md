@@ -294,4 +294,23 @@ Ou use o script de conveniência que carrega `.env` e executa o Flask:
 
   Projeto licenciado sob MIT. (Adicione `LICENSE` se desejar.)
 
+## Gmail OAuth (feature/gmail-oauth)
+
+Uma implementação mínima do fluxo OAuth do Gmail está disponível na branch `feature/gmail-oauth`.
+
+Variáveis de ambiente necessárias:
+
+- `GMAIL_OAUTH_CLIENT_ID` e `GMAIL_OAUTH_CLIENT_SECRET`: credenciais do cliente OAuth do Google.
+- `ADMIN_API_TOKEN`: token simples para proteger a chamada POST `/fetch-emails`.
+- `GMAIL_TOKEN_JSON`: JSON contendo `access_token` e `refresh_token` (recomendado: armazenar como secret no Fly).
+
+Fluxo de testes locais:
+
+1. Adicione as credenciais ao seu `.env`.
+2. Rode `flask run` e acesse `/gmail/start` para iniciar o consentimento.
+3. Após conceder acesso, o callback retornará um `code`. Troque esse code pelo token de acesso/refresh usando o endpoint de token do Google e salve o JSON em `GMAIL_TOKEN_JSON`.
+
+No Fly, armazene `GMAIL_TOKEN_JSON` e `ADMIN_API_TOKEN` como secrets com `fly secrets set`.
+
+
 

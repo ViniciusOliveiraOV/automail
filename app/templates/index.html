@@ -4,6 +4,12 @@
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width,initial-scale=1" />
         <title>Classificador de Emails</title>
+        <style>
+            /* Demo blur for fetched email content */
+            .demo-blur { filter: blur(8px); -webkit-filter: blur(8px); transition: filter 240ms ease; }
+            .demo-blur * { pointer-events: none; }
+            .blur-toggle-btn { border: 1px solid rgba(0,0,0,0.08); padding: .5rem .75rem; border-radius: .375rem; background:white; }
+        </style>
     <!-- Production: use prebuilt Tailwind CSS (build with npm run build:css) -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/tailwind.css') }}">
     <!-- Project custom overrides (colors, components) -->
@@ -40,109 +46,173 @@
 
                         <a href="{{ url_for('main.index') }}" class="ml-auto text-sm text-slate-500 hover:underline">Limpar</a>
                     </div>
+                    <div class="mt-4 border-t pt-4">
+                        <h3 class="text-sm font-medium">Integração Gmail</h3>
+                        <p class="text-xs text-slate-500">Conecte sua conta Gmail para buscar e classificar emails de hoje automaticamente.</p>
+                        <div class="mt-2 flex items-center gap-3">
+                            <a id="gmail-connect" href="{{ gmail_start_url or '/gmail/start' }}" class="inline-flex items-center px-3 py-2 rounded-md bg-blue-600 text-white text-sm hover:bg-blue-700">Conectar Gmail</a>
+                            <button id="gmail-fetch" type="button" class="btn-secondary">Buscar e classificar emails de hoje</button>
+                            <button id="blurToggle" type="button" class="blur-toggle-btn ml-2">Mostrar (demo)</button>
+                            <div id="gmail-status" class="text-sm text-slate-500"></div>
+                        </div>
+                        <div id="gmail-results" class="mt-3 hidden bg-slate-50 p-3 rounded text-sm demo-blur"></div>
+                    </div>
                     <p class="mt-3 text-xs text-slate-500">Observação: o assistente (LLM) é executado apenas sob demanda em casos ambíguos — após a primeira classificação a página de resultado mostrará um botão "Perguntar ao assistente" quando disponível. Ative o recurso no servidor definindo <code>ENABLE_LLM=1</code> e <code>ALLOW_UI_LLM_TOGGLE=1</code> no ambiente.</p>
                 </form>
             </main>
         </div>
     </body>
+    <!-- Admin token modal (hidden by default) -->
+    <div id="adminModal" class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50" style="display:none; z-index:50;">
+        <div class="bg-white rounded-lg p-6 w-full max-w-md shadow-lg">
+            <h3 class="text-lg font-semibold mb-2">Admin token</h3>
+            <p class="text-sm text-slate-600 mb-4">Insira o ADMIN_API_TOKEN (só necessário em produção).</p>
+            <input id="adminTokenInput" type="password" class="w-full border rounded px-3 py-2 mb-4" placeholder="ADMIN_API_TOKEN" />
+            <div class="flex justify-end gap-2">
+                <button id="adminTokenCancel" class="px-3 py-2 rounded bg-slate-100">Cancelar</button>
+                <button id="adminTokenOk" class="px-3 py-2 rounded bg-blue-600 text-white">OK</button>
+            </div>
+        </div>
+    </div>
     <script>
         (function(){
+            // File input helpers (stay lightweight)
             const fileInput = document.getElementById('emailFileInput');
             const textarea = document.getElementById('emailInput');
-            if (!fileInput || !textarea) return;
+            const filePill = document.getElementById('filePill');
+            const filePillName = document.getElementById('filePillName');
 
             function setFileInputFile(f){
-                // Try to populate the hidden file input so form submission includes the file.
                 try{
                     const dt = new DataTransfer();
                     dt.items.add(f);
                     fileInput.files = dt.files;
-                    // update UI pill
-                    try{
-                        const pill = document.getElementById('filePill');
-                        const pillName = document.getElementById('filePillName');
-                        if (pill && pillName){
-                            pillName.textContent = f.name || '(anexo)';
-                            pill.style.display = '';
-                        }
-                    }catch(e){}
-                }catch(e){
-                    // ignore if DataTransfer not available in this environment
-                }
+                    if (filePill && filePillName){ filePillName.textContent = f.name || '(anexo)'; filePill.style.display = ''; }
+                }catch(e){/* ignore */}
             }
 
             function readTextFile(file){
                 if (!file) return;
-                // if PDF, populate the file input and leave extraction to server
-                if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')){
-                    setFileInputFile(file);
-                    return;
-                }
+                if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')){ setFileInputFile(file); return; }
                 const reader = new FileReader();
-                reader.onload = function(e){
-                    const text = e.target.result || '';
-                    // replace textarea content with file content
-                    textarea.value = text;
-                    // also set the hidden file input so the server receives the file on submit
-                    setFileInputFile(file);
-                };
-                reader.onerror = function(){
-                    // ignore and leave behavior to form upload
-                };
+                reader.onload = function(e){ const text = e.target.result || ''; textarea.value = text; setFileInputFile(file); };
+                reader.onerror = function(){};
                 reader.readAsText(file, 'utf-8');
             }
 
-            fileInput.addEventListener('change', (ev) => {
-                const f = ev.target.files && ev.target.files[0];
-                // if user picked a file via the dialog just read it (and fileInput already has it)
-                readTextFile(f);
-            });
+            if (fileInput && textarea){
+                fileInput.addEventListener('change', (ev)=>{ const f = ev.target.files && ev.target.files[0]; readTextFile(f); });
+                const pillRemove = document.getElementById('filePillRemove');
+                if (pillRemove){ pillRemove.addEventListener('click', (ev)=>{ ev.preventDefault(); try{ fileInput.value=''; fileInput.files = new DataTransfer().files;}catch(e){} if (filePill) filePill.style.display='none'; if (filePillName) filePillName.textContent=''; }); }
+                const dropHint = document.getElementById('dropHint');
+                textarea.addEventListener('dragenter', (ev)=>{ ev.preventDefault(); textarea.classList.add('drag-active'); if (dropHint) dropHint.style.display='none'; });
+                textarea.addEventListener('dragover', (ev)=>{ ev.preventDefault(); ev.dataTransfer.dropEffect='copy'; });
+                textarea.addEventListener('dragleave', (ev)=>{ ev.preventDefault(); textarea.classList.remove('drag-active'); if (dropHint) dropHint.style.display=''; });
+                textarea.addEventListener('drop', (ev)=>{ ev.preventDefault(); textarea.classList.remove('drag-active'); if (dropHint) dropHint.style.display=''; const f = ev.dataTransfer.files && ev.dataTransfer.files[0]; readTextFile(f); });
+                textarea.addEventListener('paste', (ev)=>{ const items = ev.clipboardData && ev.clipboardData.items; if (!items) return; for (let i=0;i<items.length;i++){ const it=items[i]; if (it.kind==='file'){ const f=it.getAsFile(); if (f){ ev.preventDefault(); readTextFile(f); return; } } } });
+            }
 
-            // file pill removal
-            const pillRemove = document.getElementById('filePillRemove');
-            if (pillRemove){
-                pillRemove.addEventListener('click', (ev)=>{
-                    ev.preventDefault();
-                    // clear file input
-                    try{ fileInput.value = ''; fileInput.files = new DataTransfer().files;}catch(e){}
-                    // hide pill
-                    const pill = document.getElementById('filePill'); if (pill) pill.style.display = 'none';
-                    const pillName = document.getElementById('filePillName'); if (pillName) pillName.textContent = '';
-                    // clear textarea if it was populated from file
-                    // (we don't try to detect origin; user can paste again if needed)
-                    // textarea.value = '';
+            // Gmail token status check (UI hint)
+            (async function checkToken(){ try{ const r = await fetch('/gmail/token-status'); if (!r.ok) return; const j = await r.json(); const st = document.getElementById('gmail-status'); if (!st) return; if (j.configured) { st.textContent = 'Token do Gmail configurado (' + (j.source || 'env') + ')'; } else { st.innerHTML = 'Nenhum token do Gmail configurado. <a href="' + (document.getElementById('gmail-connect')?.href || '/gmail/start') + '">Conectar Gmail</a>.'; } }catch(e){} })();
+
+            // Gmail fetch client with masked admin token modal and colored results
+            const btn = document.getElementById('gmail-fetch');
+            if (!btn) return;
+            const status = document.getElementById('gmail-status');
+            const results = document.getElementById('gmail-results');
+            const adminModal = document.getElementById('adminModal');
+            const adminInput = document.getElementById('adminTokenInput');
+            const adminOk = document.getElementById('adminTokenOk');
+            const adminCancel = document.getElementById('adminTokenCancel');
+            const blurToggle = document.getElementById('blurToggle');
+
+            function showAdminModal(promptText){
+                return new Promise((resolve)=>{
+                    if (!adminModal) return resolve(null);
+                    adminModal.style.display = 'block';
+                    adminInput.value = '';
+                    adminInput.placeholder = promptText || '';
+                    adminInput.focus();
+                    function cleanup(val){ adminModal.style.display = 'none'; adminOk.removeEventListener('click', onOk); adminCancel.removeEventListener('click', onCancel); resolve(val); }
+                    function onOk(e){ cleanup(adminInput.value || null); }
+                    function onCancel(e){ cleanup(null); }
+                    adminOk.addEventListener('click', onOk);
+                    adminCancel.addEventListener('click', onCancel);
                 });
             }
 
-            // drag and drop onto textarea (with visual state)
-            const dropHint = document.getElementById('dropHint');
-            textarea.addEventListener('dragenter', (ev) => { ev.preventDefault(); textarea.classList.add('drag-active'); if (dropHint) dropHint.style.display = 'none'; });
-            textarea.addEventListener('dragover', (ev) => { ev.preventDefault(); ev.dataTransfer.dropEffect = 'copy'; });
-            textarea.addEventListener('dragleave', (ev) => { ev.preventDefault(); textarea.classList.remove('drag-active'); if (dropHint) dropHint.style.display = ''; });
-            textarea.addEventListener('drop', (ev) => {
-                ev.preventDefault();
-                textarea.classList.remove('drag-active');
-                if (dropHint) dropHint.style.display = '';
-                const f = ev.dataTransfer.files && ev.dataTransfer.files[0];
-                readTextFile(f);
+            function colorForConfidence(conf){ if (conf >= 0.7) return 'text-green-700'; if (conf >= 0.4) return 'text-amber-700'; return 'text-red-700'; }
+
+            btn.addEventListener('click', async ()=>{
+                try{
+                    status.textContent = 'Buscando emails...'; status.className = '';
+                    results.classList.add('hidden');
+                    let resp = await fetch('/fetch-emails', { method: 'POST' });
+                    if (resp.status === 401) {
+                        const admin2 = await showAdminModal('Insira ADMIN_API_TOKEN (produção usa secrets)');
+                        if (!admin2) { status.textContent = 'Operação cancelada'; return; }
+                        resp = await fetch('/fetch-emails', { method: 'POST', headers: { 'Authorization': 'Bearer ' + admin2 } });
+                    }
+                    if (!resp.ok){ const j = await resp.json().catch(()=>({})); if (j && j.error === 'no_gmail_token_configured'){ status.innerHTML = 'Nenhum token do Gmail configurado. Clique em <a href="' + (document.getElementById('gmail-connect')?.href || '/gmail/start') + '">Conectar Gmail</a> e complete o consentimento.'; status.className='text-red-700'; return; } status.textContent = j.error || ('Erro: ' + resp.statusText); status.className='text-red-700'; return; }
+                    const j = await resp.json();
+                    const totals = j.totals || {};
+                    status.textContent = `Totais: Produtivo ${totals.productive || 0} — Improdutivo ${totals.unproductive || 0}`;
+                    status.className = (totals.productive || 0) > (totals.unproductive || 0) ? 'text-green-700' : 'text-red-700';
+                    const msgs = j.messages || [];
+                    let html = '<div class="space-y-2">';
+                    msgs.forEach(m=>{
+                        const conf = Number(m.confidence || 0);
+                        const confClass = colorForConfidence(conf);
+                        const catNorm = (m.category || '').toString().toLowerCase().trim();
+                        const catIsProd = (catNorm === 'produtivo' || catNorm === 'productive');
+                        const catClass = catIsProd ? 'prod' : 'imp';
+                        const subject = m.subject || '(sem assunto)';
+                        const from = m.from || '';
+                        const labelText = catIsProd ? 'Produtivo' : 'Improdutivo';
+                        // coerce confidence to number and clamp to [0,1]
+                        const confNum = Number(conf) || 0;
+                        const confClamped = Math.max(0, Math.min(1, confNum));
+                        const scorePct = Math.round(confClamped * 100);
+                        // inline color fallbacks in case Tailwind classes are not present/compiled
+                        const badgeInline = catIsProd ? 'background:#ecfdf5;color:#065f46' : 'background:#ffedea;color:#7f1d1d';
+                        const containerClass = catIsProd ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50';
+                        html += `<div class="p-2 rounded border ${containerClass}" data-category="${(m.category||'').toString().replace(/"/g,'')}">`;
+                        html += `<div class="flex items-baseline justify-between">`;
+                        html += `<div>`;
+                        html += `<strong>${subject}</strong>`;
+                        // label badge with score (with inline style fallback)
+                        html += ` <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs ${catIsProd ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}" style="${badgeInline}">${labelText} • ${scorePct}%</span>`;
+                        html += ` <span class="text-sm text-slate-600 ml-2">${from}</span>`;
+                        html += `</div>`;
+                        html += `<div class="text-xs ${confClass}">conf: ${confClamped.toFixed(2)}</div>`;
+                        html += `</div>`;
+                        // debug data attributes and console log for diagnostics
+                        console.debug('email-card', {id: m.id, category: m.category, confidence: m.confidence, scorePct});
+                        // ensure long unbroken strings wrap and don't overflow the card
+                        html += `<div class="mt-1 text-sm" style="white-space:normal;word-break:break-word;overflow-wrap:anywhere;max-height:8rem;overflow:auto;">${(m.snippet||'').replace(/\n/g,' ')}</div>`;
+                        html += `</div>`;
+                    });
+                    html += '</div>';
+                    results.innerHTML = html; results.classList.remove('hidden');
+                    // ensure results start blurred for demo; button toggles visibility
+                    if (blurToggle) { results.classList.add('demo-blur'); blurToggle.textContent = 'Mostrar (demo)'; }
+                }catch(e){ console.error(e); status.textContent='Erro ao buscar emails'; status.className='text-red-700'; }
             });
 
-            // paste: if clipboard contains a file, read it
-            textarea.addEventListener('paste', (ev) => {
-                const items = ev.clipboardData && ev.clipboardData.items;
-                if (!items) return;
-                for (let i = 0; i < items.length; i++){
-                    const it = items[i];
-                    if (it.kind === 'file'){
-                        const f = it.getAsFile();
-                        if (f) {
-                            ev.preventDefault();
-                            readTextFile(f);
-                            return;
-                        }
+            // blur toggle handler
+            if (blurToggle) {
+                blurToggle.addEventListener('click', (e)=>{
+                    if (!results) return;
+                    if (results.classList.contains('demo-blur')){
+                        results.classList.remove('demo-blur');
+                        blurToggle.textContent = 'Ocultar (demo)';
+                    } else {
+                        results.classList.add('demo-blur');
+                        blurToggle.textContent = 'Mostrar (demo)';
                     }
-                }
-            });
+                });
+            }
+
         })();
     </script>
 </html>

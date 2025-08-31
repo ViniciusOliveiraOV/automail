@@ -1,5 +1,6 @@
 import os
 import logging
+import json
 from dotenv import load_dotenv
 
 # Load environment variables from .env automatically so `flask run`
@@ -21,6 +22,8 @@ def create_app():
         app.config.from_object(TestingConfig)
     else:
         app.config.from_object(DevelopmentConfig)
+    # expose chosen config name at runtime
+    app.config['APP_CONFIG'] = cfg
     # Ensure LLM-related flags reflect the current process environment at
     # startup. The config classes read os.environ at import time which can
     # be stale if the environment changes before create_app is called by
@@ -45,6 +48,38 @@ def create_app():
 
     # Register blueprints
     app.register_blueprint(routes)
+    # Import and register optional gmail blueprint at runtime so import-time
+    # failures (missing optional deps) don't leave the app in a state where
+    # templates that call url_for('gmail_auth.*') fail with BuildError.
+    try:
+        from app.gmail_auth import bp as gmail_bp
+        app.register_blueprint(gmail_bp)
+    except Exception:
+        try:
+            from app.routes.gmail_auth import bp as gmail_bp
+            app.register_blueprint(gmail_bp)
+        except Exception:
+            app.logger.debug('gmail_auth blueprint not available; skipping')
+
+    # if a persisted gmail token exists in the instance folder, load it into config
+    try:
+        # First prefer explicit env var (useful for CI or when you set it in .env)
+        gmail_env = os.environ.get("GMAIL_TOKEN_JSON")
+        if gmail_env:
+            try:
+                app.config["GMAIL_TOKEN_JSON"] = json.loads(gmail_env)
+            except Exception:
+                # if it's not valid JSON, store the raw string (some users store a file path)
+                app.config["GMAIL_TOKEN_JSON"] = gmail_env
+        else:
+            inst_path = app.instance_path
+            token_path = os.path.join(inst_path, "gmail_token.json")
+            if os.path.exists(token_path):
+                with open(token_path, "r", encoding="utf-8") as f:
+                    app.config["GMAIL_TOKEN_JSON"] = json.load(f)
+    except Exception:
+        # ignore if instance path doesn't exist or token can't be read
+        pass
 
     # Static assets (like tiled background) are served from app/static in production.
     return app

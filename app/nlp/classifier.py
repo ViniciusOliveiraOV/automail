@@ -258,11 +258,11 @@ def _contains_actionable_elements(text: str) -> bool:
     if not text:
         return False
     t = text.lower()
-    # urls
+    # urls (consider presence of links as actionable)
     if re.search(r"https?://\S+|www\.\S+", t):
         return True
     # email/payment/order patterns with 'click' / 'clique' / 'botão' nearby
-    if re.search(r"\bclick here\b|\bclique aqui\b|\bclique no botão\b|\bbotão\b|\bacesse o link\b|\bconsulte o pedido\b", t):
+    if re.search(r"\bclick here\b|\bclique aqui\b|\bclique no botão\b|\bbotão\b|\bacesse o link\b|\bacesse o\b|\bconsulte o pedido\b|\bconfirme\b|\bverifique\b|\bconfirma\b", t):
         return True
     # short 'click' + 'order' context
     if "clique" in t or "click" in t or "botão" in t or "button" in t:
