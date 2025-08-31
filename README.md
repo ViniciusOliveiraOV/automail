@@ -155,7 +155,7 @@ O sistema combina um classificador baseado em regras (heurísticas) com um fallb
 
   Resumo do fluxo ao classificar um texto/PDF:
 
-  1. Extração: PDFs são lidos por `utils/pdf_parser.py`. Se o PDF não tiver texto extraível, o sistema pode sinalizar para revisão ou usar OCR (opcional).
+  1. Extração: PDFs são lidos por `utils/pdf_parser.py`. Se o PDF não tiver texto extraível, o sistema pode sinalizar para revisão ou usar OCR (Optical Character Recognition).
   2. Pré‑processamento: `nlp/preprocess.py` limpa, normaliza (lowercase), tokeniza e remove stopwords. Também reduz ruído (muitos símbolos, strings repetidas).
   3. Regras heurísticas (regra principal):
     - Lista de palavras‑chave produtivas (ex.: "revisar", "prazo", "confirma", "reunião") soma pontos.
