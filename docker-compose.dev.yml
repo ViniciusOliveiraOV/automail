@@ -4,7 +4,11 @@ services:
     build: .
     volumes:
       - ./backend:/app/backend:rw
-      - ./.env:/app/backend/.env:ro
+    # Use env_file instead of bind-mounting the .env file into the container.
+    # Mounting a host path named `.env` can accidentally create a directory
+    # and interfere with container filesystem expectations. Using env_file
+    # allows docker-compose to load variables without mapping host files.
+    env_file: .env
     environment:
       - APP_CONFIG=development
       - FLASK_ENV=development

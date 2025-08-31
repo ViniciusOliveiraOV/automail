@@ -8,7 +8,8 @@ services:
     volumes:
       # mount the src 'app' folder into the container application path so imports work
       - ./app:/usr/src/app/app:rw
-      - ./.env:/usr/src/app/.env:ro
+    # Load environment variables from .env rather than mounting the file into the container.
+    env_file: .env
     ports:
       - "5000:5000"   # mapeamento para dev server Flask (opcional)
       - "8000:8000"   # mapeamento para Gunicorn (produção)
