@@ -1,0 +1,29 @@
+# fly.toml - template gerado pelo assistente
+# Antes de usar, substitua `app` pelo nome da sua aplicação Fly (ou use o script em scripts/deploy_fly.ps1)
+app = "your-app-name-here"
+
+[build]
+  dockerfile = "./Dockerfile"
+
+[[services]]
+  internal_port = 8080
+  protocol = "tcp"
+
+  [services.concurrency]
+    type = "connections"
+    soft_limit = 20
+    hard_limit = 25
+
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+  [services.tcp_checks]
+    interval = 10000
+    timeout = 2000
+    grace_period = "1m30s"
+    restart_limit = 0

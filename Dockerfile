@@ -23,15 +23,27 @@ COPY . /usr/src/app
 # Ensure the repository root is on PYTHONPATH so `import app` resolves.
 ENV PYTHONPATH=/usr/src/app
 
-# Expose the port the app runs on
-EXPOSE 8000
+# Expose the (conventional) HTTP port used by many PaaS; the runtime will
+# still provide a PORT env var which we use at runtime so the container can
+# adapt to whatever port the host assigns.
+EXPOSE 8080
 
 # Create a non-root user for security
 RUN adduser --disabled-password --gecos '' appuser || true
 USER appuser
 
-# Healthcheck route should be available in the app
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 CMD curl -f http://127.0.0.1:8000/_health || exit 1
+# Healthcheck route should be available in the app. Install curl so the
+# healthcheck binary exists; this keeps the healthcheck reliable inside the
+# slim base image.
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+USER appuser
 
-# Default command for production (Gunicorn)
-CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:8000", "app.main:create_app()"]
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 CMD curl -f http://127.0.0.1:$PORT/_health || exit 1
+# Copy startup wrapper and make it executable
+COPY --chown=appuser:appuser start.sh /usr/local/bin/start.sh
+RUN chmod +x /usr/local/bin/start.sh
+
+# Default command uses the startup wrapper which validates $PORT then execs
+# gunicorn. Using exec means PID 1 is the gunicorn process (cleaner signals).
+CMD ["/usr/local/bin/start.sh"]

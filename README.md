@@ -256,12 +256,30 @@ Ou use o script de conveniência que carrega `.env` e executa o Flask:
   Ele tentará até 15 vezes verificar `http://localhost:5000` e retornará 0 em sucesso ou 1 em falha.
 
   ## Variáveis importantes (.env)
-  - `SECRET_KEY` - Flask secret
-  - `LOAD_MODEL` - se `1` carrega modelo ML para fallback
-  - `MODEL_PATH` - caminho local para o modelo (se `LOAD_MODEL=1`)
-  - `ENABLE_OCR` - se `1` ativa tentativa de OCR em PDFs (requer dependências)
-  - `HF_API_TOKEN` / `OPENAI_API_KEY` - tokens para chamadas de LLM
-  - `AI_DBG` - ativa logs adicionais para LLM/AI
+
+  ## Deploy no Fly.io
+
+  1. Instale e autêntique o CLI do Fly:
+
+  ```powershell
+  # macOS / Linux / Windows (via Scoop / choco) instalação disponível em https://fly.io/docs/
+  flyctl auth login
+  ```
+
+  2. Ajuste `fly.toml` (nome da app) ou passe `-AppName` ao script.
+
+  3. Carregue segredos do seu `.env` e faça deploy (exemplo):
+
+  ```powershell
+  # cria a app (opcional) e força criação se necessário
+  .\scripts\deploy_fly.ps1 -AppName my-automail-app -ForceCreate
+  ```
+
+  O script irá ler `.env`, enviar as chaves para o Fly como secrets e executar `flyctl deploy` usando o `Dockerfile` do repositório.
+
+  Notas:
+  - Verifique `fly.toml` e substitua `app = "your-app-name-here"` pelo nome correto ou use `-AppName` no script.
+  - Em produção, mantenha segredos fora do repositório e use os secrets do Fly.
 
   ## Como auditar uma decisão
   - Cada resposta da API `/classify` inclui `decision`, `confidence` e `details` (lista/objeto com scores por heurística, features relevantes e, se usado, resposta bruta do ML/LLM).
