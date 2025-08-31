@@ -12,7 +12,13 @@ PROD_FLAGS := -f docker-compose.yml -f docker-compose.prod.yml
 ifeq ($(OS),Windows_NT)
 UP_ENV_CMD = powershell -NoProfile -Command "if (Test-Path '.env') { Get-Content '.env' | ForEach-Object { if ($_ -match '^\s*([^#\s][A-Za-z0-9_]+)\s*=\s*(.*)$$') { $k=$matches[1]; $v=$matches[2].Trim(); if ($v -match '^(\"|\')(.*)\\1$$') { $v=$matches[2] }; [System.Environment]::SetEnvironmentVariable($k,$v,'Process') } } };"
 else
-UP_ENV_CMD = sh -c 'if [ -f .env ]; then set -o allexport; . .env; set +o allexport; fi;'
+# On Unix-like systems docker-compose will automatically load .env from
+# the compose project directory. Avoid attempting to "source" the file
+# (some environments may treat it as missing or as a directory and the
+# '.' builtin can fail). Use a no-op here so the Make targets remain
+# cross-platform but safe. If explicit exporting is required on a host
+# it can be done manually before running `make`.
+UP_ENV_CMD = true
 endif
 
 .PHONY: phony help up up-detach build down logs ps health \
